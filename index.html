@@ -1,93 +1,47 @@
-<!-- Vanlife Savings Spots App -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Vanlife Savings Spots</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-<div id="vanlife-app-wrapper">
-  <div id="vanlife-app">
-
-    <div style="color:white; text-align:center; margin-bottom:20px;">
-      <h2>Vanlife Savings Spots</h2>
-      <p>Find and save your favorite vanlife spots on the map.</p>
-    </div>
-
-    <!-- MAP + UNLOCK OVERLAY -->
-    <div id="vanlife-map">
-      <div id="map-overlay">Tap to Unlock Map</div>
-    </div>
-
-    <button id="refresh-location">📍 Re-center Map</button>
-
-    <!-- FORM -->
-    <div style="background: #fef3e0; padding: 20px; border-radius: 12px; margin-top: 20px;">
-      <form id="wifi-form">
-        <input id="spot-name" placeholder="Spot name" required><br><br>
-
-        <select id="spot-type" required>
-          <option value="">Type</option>
-          <option value="Library">Library</option>
-          <option value="McDonald's">McDonald's</option>
-          <option value="Cafe">Cafe</option>
-          <option value="Toilet">Toilet</option>
-          <option value="Park">Park</option>
-          <option value="Showground">Showground</option>
-          <option value="Other">Other</option>
-        </select><br><br>
-
-        <select id="spot-wifi" required>
-          <option value="">Wi-Fi?</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select><br><br>
-
-        <input id="spot-address" placeholder="Describe or type the place (e.g. 'maccas near the beach in Coolangatta')" required><br><br>
-        <textarea id="spot-notes" rows="2" placeholder="Notes or tips (optional)"></textarea><br><br>
-
-        <button type="submit">Add Spot</button>
-      </form>
-    </div>
-
-    <!-- BUY ME A COFFEE -->
-    <div id="bmac-button" style="
-      background: #FFF8E1;
-      padding: 14px;
-      border-radius: 12px;
-      text-align: center;
-      margin-top: 20px;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-      cursor: pointer;
-    ">
-      <a href="https://buymeacoffee.com/retiredtovanlife" target="_blank" style="text-decoration:none;">
-        <div style="font-size: 18px; color: #000000; font-weight: bold; margin-bottom: 6px;">☕ Enjoying this tool?</div>
-        <div style="font-size: 16px; color: #a17451; font-weight: normal; margin-bottom: 4px;">Support the project</div>
-        <div style="font-size: 20px; color: #8b5e3c; font-weight: bold;">Buy Me A Coffee</div>
-      </a>
-    </div>
-
-  </div>
-
-  <!-- AFFILIATE LINKS -->
-  <div class="affiliate-links">
-    <p><a href="https://tripwizard.rvlife.com/#6977ed8b6fabf" target="_blank">Plan your RV trip with RVLife Trip Wizard</a></p>
-    <p><a href="https://starterstopper.com" target="_blank">Get 5% off your StarterStopper immobilizer — use promo code <b>RTV5</b></a></p>
-    <p style="color:#555;font-size:12px;">As an affiliate, I earn from qualifying purchases at no extra cost to you.</p>
-  </div>
-</div>
-
 <style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #111827;
+  }
+
   #vanlife-app-wrapper {
-    width: 95%;
-    max-width: 900px;
-    margin: auto;
-    font-family: sans-serif;
+    width: 100%;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 10px;
   }
 
   #vanlife-app {
     width: 100%;
     background: linear-gradient(135deg,#d97742,#b45309);
-    padding: 20px;
+    padding: 16px;
     border-radius: 16px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.35);
+    color: #fff7ed;
+  }
+
+  h2 {
+    margin: 0 0 4px 0;
+    font-size: 1.4rem;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.9rem;
   }
 
   #vanlife-map {
@@ -96,54 +50,77 @@
     border-radius: 12px;
     position: relative;
     overflow: hidden;
+    margin-top: 14px;
   }
 
-  /* Overlay sits ON TOP of the live map */
   #map-overlay {
     position: absolute;
     top:0;
     left:0;
     width:100%;
     height:100%;
-    background: rgba(255, 248, 240, 0.6);
+    background: rgba(255, 248, 240, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #555;
-    font-weight: bold;
-    font-size: 18px;
+    color: #4b5563;
+    font-weight: 600;
+    font-size: 1rem;
     border-radius: 12px;
     cursor: pointer;
     text-align: center;
     z-index: 1000;
+    padding: 0 16px;
   }
 
-  .affiliate-links {
-    max-width: 600px;
-    margin: 20px auto;
-    padding: 12px;
-    background: #fef3e0;
-    border-radius: 12px;
-    text-align: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    font-size: 14px;
+  #status-bar {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #fefce8;
+    min-height: 18px;
   }
 
-  .affiliate-links a {
-    color: #b45309;
-    font-weight: bold;
-    text-decoration: underline;
+  #controls-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
   }
 
-  #refresh-location {
-    display:inline-block;
-    margin-top:10px;
-    padding:8px 14px;
+  #refresh-location,
+  #show-my-pins {
+    flex: 1 1 140px;
+    padding: 8px 10px;
     background:#b45309;
     color:white;
     border:none;
     border-radius:6px;
     cursor:pointer;
+    font-size: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  #refresh-location span,
+  #show-my-pins span {
+    font-size: 1.1rem;
+  }
+
+  #wifi-form-wrapper {
+    background: #fef3e0;
+    padding: 16px;
+    border-radius: 12px;
+    margin-top: 16px;
+    color: #111827;
+  }
+
+  #wifi-form label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
   }
 
   #wifi-form input,
@@ -152,8 +129,14 @@
     width: 100%;
     padding: 6px;
     border-radius: 6px;
-    border: 1px solid #ccc;
-    background: #fff8f0;
+    border: 1px solid #d1d5db;
+    background: #fff7ed;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  #wifi-form textarea {
+    resize: vertical;
   }
 
   #wifi-form button {
@@ -164,9 +147,59 @@
     border-radius: 6px;
     width: 100%;
     cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
   }
 
-  /* Blue van user icon + location ring */
+  .autocomplete-box {
+    position: relative;
+  }
+
+  .autocomplete-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: #fff7ed;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    max-height: 160px;
+    overflow-y: auto;
+    z-index: 2000;
+    font-size: 0.85rem;
+  }
+
+  .autocomplete-item {
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+
+  .autocomplete-item:hover {
+    background: #fee2e2;
+  }
+
+  #toast {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111827;
+    color: #f9fafb;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 5000;
+  }
+
+  #toast.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
   .user-van-icon {
     width: 38px;
     height: 38px;
@@ -179,40 +212,253 @@
     box-shadow: 0 0 12px rgba(30,144,255,0.7);
     font-size: 22px;
   }
+
+  .affiliate-links {
+    max-width: 700px;
+    margin: 16px auto 0 auto;
+    padding: 12px;
+    background: #fef3e0;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    font-size: 0.85rem;
+    color: #374151;
+  }
+
+  .affiliate-links a {
+    color: #b45309;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  #bmac-button {
+    background: #FFF8E1;
+    padding: 14px;
+    border-radius: 12px;
+    text-align: center;
+    margin-top: 16px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+    cursor: pointer;
+  }
+
+  #bmac-button a {
+    text-decoration: none;
+  }
+
+  #bmac-button div {
+    margin: 0;
+  }
+
+  #pin-list {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    max-height: 160px;
+    overflow-y: auto;
+    background: rgba(17,24,39,0.15);
+    border-radius: 8px;
+    padding: 6px;
+  }
+
+  .pin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: rgba(15,23,42,0.35);
+    margin-bottom: 4px;
+  }
+
+  .pin-item span {
+    flex: 1;
+    margin-right: 6px;
+  }
+
+  .pin-actions button {
+    border: none;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    margin-left: 4px;
+  }
+
+  .btn-edit { background:#facc15; color:#111827; }
+  .btn-delete { background:#ef4444; color:#f9fafb; }
+
+  @media (max-width: 640px) {
+    #vanlife-app {
+      padding: 12px;
+    }
+    #vanlife-map {
+      height: 360px !important;
+    }
+    #refresh-location,
+    #show-my-pins {
+      font-size: 0.8rem;
+    }
+  }
 </style>
+</head>
+<body>
+
+<div id="vanlife-app-wrapper">
+  <div id="vanlife-app">
+    <div style="text-align:center;">
+      <h2>Vanlife Savings Spots</h2>
+      <p>Find, save, and refine your favourite vanlife spots.</p>
+    </div>
+
+    <div id="vanlife-map">
+      <div id="map-overlay">Tap to unlock and explore the map</div>
+    </div>
+
+    <div id="status-bar"></div>
+
+    <div id="controls-row">
+      <button id="refresh-location"><span>📍</span> Locate Me</button>
+      <button id="show-my-pins"><span>⭐</span> My Saved Spots</button>
+    </div>
+
+    <div id="wifi-form-wrapper">
+      <form id="wifi-form">
+        <label for="spot-name">Spot name</label>
+        <div class="autocomplete-box">
+          <input id="spot-name" placeholder="e.g. McDonalds Coolangatta, Beach Cafe, Library" required />
+          <div id="name-autocomplete" class="autocomplete-list" style="display:none;"></div>
+        </div>
+
+        <label for="spot-type">Type</label>
+        <select id="spot-type" required>
+          <option value="">Choose type</option>
+          <option value="Free Camping">Free Camping</option>
+          <option value="Library">Library</option>
+          <option value="McDonald's">McDonald's</option>
+          <option value="Cafe">Cafe</option>
+          <option value="Toilet">Toilet</option>
+          <option value="Park">Park</option>
+          <option value="Showground">Showground</option>
+          <option value="Hotel / Motel">Hotel / Motel</option>
+          <option value="Other">Other</option>
+        </select>
+
+        <label for="spot-wifi">Wi‑Fi available?</label>
+        <select id="spot-wifi" required>
+          <option value="">Select</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+
+        <label for="spot-address">Where is it? (describe or type)</label>
+        <div class="autocomplete-box">
+          <input id="spot-address" placeholder="e.g. maccas near the beach in Coolangatta, library in Ballina, free wifi at surf club" required />
+          <div id="address-autocomplete" class="autocomplete-list" style="display:none;"></div>
+        </div>
+
+        <label for="spot-notes">Notes or tips (optional)</label>
+        <textarea id="spot-notes" rows="2" placeholder="e.g. good coffee, quiet, power points, shaded parking"></textarea>
+
+        <button type="submit">Add Spot</button>
+      </form>
+    </div>
+
+    <div id="pin-list"></div>
+
+    <div id="bmac-button">
+      <a href="https://buymeacoffee.com/retiredtovanlife" target="_blank">
+        <div style="font-size: 18px; color: #000000; font-weight: bold; margin-bottom: 6px;">☕ Enjoying this tool?</div>
+        <div style="font-size: 16px; color: #a17451; font-weight: normal; margin-bottom: 4px;">Support future upgrades</div>
+        <div style="font-size: 20px; color: #8b5e3c; font-weight: bold;">Buy Me A Coffee</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="affiliate-links">
+    <p><a href="https://tripwizard.rvlife.com/#6977ed8b6fabf" target="_blank">Plan your RV trip with RVLife Trip Wizard</a></p>
+    <p><a href="https://starterstopper.com" target="_blank">Get 5% off your StarterStopper immobilizer — use promo code <b>RTV5</b></a></p>
+    <p style="color:#555;font-size:12px;">As an affiliate, I earn from qualifying purchases at no extra cost to you.</p>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  let map, markers, userMarker;
+  let map, markersLayer, userMarker;
   let mapLocked = true;
   let userLatLng = null;
+  let pins = [];
+  let lastSubmitTime = 0;
 
   const overlay = document.getElementById('map-overlay');
+  const statusBar = document.getElementById('status-bar');
+  const toast = document.getElementById('toast');
+  const pinList = document.getElementById('pin-list');
+
+  const nameInput = document.getElementById('spot-name');
+  const addressInput = document.getElementById('spot-address');
+  const nameAC = document.getElementById('name-autocomplete');
+  const addressAC = document.getElementById('address-autocomplete');
 
   const emoji = {
+    "Free Camping": '⛺',
     Library: '📚',
-    "McDonald's": '🍔',
+    "McDonald\'s": '🍔',
     Cafe: '☕',
     Toilet: '🚻',
     Park: '🌳',
     Showground: '🏟️',
+    "Hotel / Motel": '🏨',
     Other: '📍'
   };
 
-  function createIcon(type, pulse = false) {
+  const commonNames = [
+    "McDonalds Coolangatta",
+    "McDonalds Ballina",
+    "McDonalds Coffs Harbour",
+    "Coolangatta Library",
+    "Ballina Library",
+    "Beach Cafe Coolangatta",
+    "Surf Club Coolangatta",
+    "Public Toilet Coolangatta",
+    "Free Camping Area",
+    "Showground Camping"
+  ];
+
+  const commonAddresses = [
+    "Coolangatta QLD",
+    "Marine Parade Coolangatta",
+    "Ballina NSW",
+    "Coffs Harbour NSW",
+    "Gold Coast QLD",
+    "free wifi near Coolangatta",
+    "library in Ballina",
+    "cafe near the beach in Coolangatta"
+  ];
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  function setStatus(msg) {
+    statusBar.textContent = msg || '';
+  }
+
+  function createIcon(type) {
     return L.divIcon({
-      html: `<div style="font-size:24px;background:white;border-radius:50%;padding:8px;
+      html: `<div style="font-size:22px;background:white;border-radius:50%;padding:6px;
              box-shadow:0 2px 8px rgba(0,0,0,0.3)">${emoji[type] || '📍'}</div>`,
       className: '',
-      iconSize: [40, 40],
-      iconAnchor: [20, 40]
+      iconSize: [36, 36],
+      iconAnchor: [18, 36]
     });
   }
 
-  /* USER VAN ICON */
   function userVanIcon() {
     return L.divIcon({
       html: `<div class="user-van-icon">🚐</div>`,
@@ -222,7 +468,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  /* CREATE MAP IMMEDIATELY (under overlay) */
   map = L.map('vanlife-map', {
     zoomControl: true,
     zoomAnimation: false,
@@ -235,9 +480,8 @@ document.addEventListener('DOMContentLoaded', function() {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
-  markers = L.layerGroup().addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
 
-  /* LOCK MAP UNTIL UNLOCKED */
   function updateMapLock() {
     if (mapLocked) {
       map.dragging.disable();
@@ -255,115 +499,220 @@ document.addEventListener('DOMContentLoaded', function() {
       map.doubleClickZoom.enable();
     }
   }
-
   updateMapLock();
 
-  /* GET USER LOCATION */
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(pos => {
-      userLatLng = [pos.coords.latitude, pos.coords.longitude];
+  function loadPins() {
+    try {
+      const raw = localStorage.getItem('vanlife_pins');
+      if (!raw) return;
+      pins = JSON.parse(raw) || [];
+    } catch(e) {
+      pins = [];
+    }
+  }
 
-      userMarker = L.marker(userLatLng, { icon: userVanIcon() })
-        .addTo(map)
-        .bindPopup('Your Location');
+  function savePins() {
+    localStorage.setItem('vanlife_pins', JSON.stringify(pins));
+  }
+
+  function renderPinsOnMap() {
+    markersLayer.clearLayers();
+    pins.forEach(pin => {
+      const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type) });
+      const destLabel = pin.name || 'Saved spot';
+      const destParam = encodeURIComponent(destLabel + ' (' + pin.lat + ',' + pin.lng + ')');
+      const popup = `
+        <div style="min-width:200px;">
+          <b style="color:#b45309;">${pin.name || 'Unnamed spot'}</b><br>
+          <b>${pin.type}</b><br>
+          Wi‑Fi: <span style="color:${pin.wifi === 'Yes' ? 'green' : 'red'}">${pin.wifi}</span><br>
+          ${pin.notes ? `<i>${pin.notes}</i><br>` : ''}<br>
+          <a href="https://www.google.com/maps/dir/?api=1&destination=${destParam}"
+             target="_blank"
+             style="color:#b45309;">
+            📱 Directions
+          </a>
+        </div>
+      `;
+      marker.bindPopup(popup);
+      marker.addTo(markersLayer);
     });
   }
 
-  /* UNLOCK MAP → CENTER ON USER IF AVAILABLE */
+  function renderPinList() {
+    if (!pins.length) {
+      pinList.innerHTML = '<div style="color:#e5e7eb;font-size:0.8rem;">No saved spots yet.</div>';
+      return;
+    }
+    pinList.innerHTML = '';
+    pins.forEach((pin, index) => {
+      const div = document.createElement('div');
+      div.className = 'pin-item';
+      const span = document.createElement('span');
+      span.textContent = `${emoji[pin.type] || '📍'} ${pin.name || 'Unnamed'} (${pin.type})`;
+      const actions = document.createElement('div');
+      actions.className = 'pin-actions';
+
+      const btnEdit = document.createElement('button');
+      btnEdit.className = 'btn-edit';
+      btnEdit.textContent = 'Edit';
+      btnEdit.onclick = () => editPin(index);
+
+      const btnDelete = document.createElement('button');
+      btnDelete.className = 'btn-delete';
+      btnDelete.textContent = 'Delete';
+      btnDelete.onclick = () => deletePin(index);
+
+      actions.appendChild(btnEdit);
+      actions.appendChild(btnDelete);
+      div.appendChild(span);
+      div.appendChild(actions);
+      pinList.appendChild(div);
+    });
+  }
+
+  function editPin(index) {
+    const pin = pins[index];
+    if (!pin) return;
+    document.getElementById('spot-name').value = pin.name;
+    document.getElementById('spot-type').value = pin.type;
+    document.getElementById('spot-wifi').value = pin.wifi;
+    document.getElementById('spot-address').value = pin.rawAddress || '';
+    document.getElementById('spot-notes').value = pin.notes || '';
+    pins.splice(index, 1);
+    savePins();
+    renderPinsOnMap();
+    renderPinList();
+    showToast('Loaded spot into form for editing');
+  }
+
+  function deletePin(index) {
+    if (!confirm('Delete this spot?')) return;
+    pins.splice(index, 1);
+    savePins();
+    renderPinsOnMap();
+    renderPinList();
+    showToast('Spot deleted');
+  }
+
+  loadPins();
+  renderPinsOnMap();
+  renderPinList();
+
+  function getUserLocation(initial = false) {
+    if (!navigator.geolocation) {
+      setStatus('Location not supported by this browser.');
+      return;
+    }
+    setStatus('Finding your location…');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userLatLng = [pos.coords.latitude, pos.coords.longitude];
+        setStatus('Location found.');
+        if (!userMarker) {
+          userMarker = L.marker(userLatLng, { icon: userVanIcon() })
+            .addTo(map)
+            .bindPopup('Your location');
+        } else {
+          userMarker.setLatLng(userLatLng);
+        }
+        if (initial) {
+          map.setView(userLatLng, 13);
+        }
+      },
+      err => {
+        setStatus('Location is disabled. Turn on location in your browser settings.');
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }
+
+  getUserLocation(true);
+
   overlay.addEventListener('click', function() {
     mapLocked = false;
     overlay.style.display = 'none';
     updateMapLock();
-
     if (userLatLng) {
       map.setView(userLatLng, 13);
       if (userMarker) userMarker.openPopup();
     } else {
-      // If no user location, just zoom into Australia a bit more
       map.setView([-25.2744, 133.7751], 5);
     }
-
     setTimeout(() => map.invalidateSize(), 200);
   });
 
-  /* SMART HUMAN-FRIENDLY GEOCODER */
+  document.getElementById('refresh-location').addEventListener('click', () => {
+    if (userLatLng) {
+      map.setView(userLatLng, 13);
+      if (userMarker) userMarker.openPopup();
+    } else {
+      getUserLocation(true);
+    }
+  });
+
+  document.getElementById('show-my-pins').addEventListener('click', () => {
+    if (!pins.length) {
+      showToast('No saved spots yet.');
+      return;
+    }
+    const group = L.featureGroup(
+      pins.map(p => L.marker([p.lat, p.lng]))
+    );
+    map.fitBounds(group.getBounds().pad(0.3));
+  });
+
   async function smartGeocode(rawText) {
     const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au';
+    const cleaned = rawText.trim();
+    if (!cleaned) return null;
 
-    // 1) Try raw text as-is (Nominatim is pretty tolerant)
-    let url1 = `${base}&q=${encodeURIComponent(rawText)}`;
-    let coords = await tryGeocode(url1);
-    if (coords) return coords;
+    const tokens = cleaned.split(/\s+/);
+    const suburbTail = tokens.slice(-3).join(' ');
 
-    // 2) If we know user location, bias search near them
+    const queries = [];
+
+    queries.push(cleaned);
+
     if (userLatLng) {
-      const nearText = `${rawText} near ${userLatLng[0]}, ${userLatLng[1]}`;
-      let url2 = `${base}&q=${encodeURIComponent(nearText)}`;
-      coords = await tryGeocode(url2);
-      if (coords) return coords;
+      queries.push(cleaned + ' near ' + userLatLng[0] + ',' + userLatLng[1]);
     }
 
-    // 3) Fallback: use last 2–3 words (often suburb/area)
-    const tokens = rawText.split(/\s+/).filter(t => t.length > 2);
     if (tokens.length >= 2) {
-      const tail = tokens.slice(-3).join(' ');
-      let url3 = `${base}&q=${encodeURIComponent(tail)}`;
-      coords = await tryGeocode(url3);
-      if (coords) return coords;
+      queries.push(suburbTail);
     }
 
+    const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne'];
+    const hasSuburb = suburbKeywords.some(k => cleaned.toLowerCase().includes(k));
+    if (!hasSuburb) {
+      queries.push(cleaned + ' Australia');
+    }
+
+    for (let q of queries) {
+      const coords = await tryGeocode(base + '&q=' + encodeURIComponent(q));
+      if (coords) return coords;
+    }
     return null;
   }
 
   async function tryGeocode(url) {
     try {
-      const res = await fetch(url, {
-        headers: {
-          'Accept-Language': 'en'
-        }
-      });
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
       const data = await res.json();
       if (!data || !data.length) return null;
       return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
-    } catch (e) {
+    } catch(e) {
       return null;
     }
   }
 
-  /* ADD PIN */
-  async function addPin(addrText, name, type, wifi, notes, focus = false) {
-    const coords = await smartGeocode(addrText);
-    if (!coords) {
-      alert("❌ Couldn't find that place. Try adding a nearby suburb or landmark name.");
+  async function addPinFromForm() {
+    const now = Date.now();
+    if (now - lastSubmitTime < 1500) {
+      showToast('Slow down a little—spot already added.');
       return;
     }
-
-    const popup = `
-      <div style="min-width:200px;">
-        <b style="color:#b45309;">${name}</b><br>
-        <b>${type}</b><br>
-        Wi-Fi: <span style="color:${wifi === 'Yes' ? 'green' : 'red'}">${wifi}</span><br>
-        ${notes ? `<i>${notes}</i>` : ''}<br><br>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addrText)}"
-           target="_blank"
-           style="color:#b45309;">
-          📱 Directions
-        </a>
-      </div>
-    `;
-
-    L.marker(coords, { icon: createIcon(type, true) })
-      .addTo(markers)
-      .bindPopup(popup);
-
-    if (focus) {
-      map.setView(coords, 13);
-    }
-  }
-
-  /* FORM SUBMIT */
-  document.getElementById('wifi-form').addEventListener('submit', async e => {
-    e.preventDefault();
+    lastSubmitTime = now;
 
     const name = document.getElementById('spot-name').value.trim() || 'Unnamed spot';
     const type = document.getElementById('spot-type').value;
@@ -371,22 +720,87 @@ document.addEventListener('DOMContentLoaded', function() {
     const addrText = document.getElementById('spot-address').value.trim();
     const notes = document.getElementById('spot-notes').value.trim();
 
-    await addPin(addrText, name, type, wifi, notes, true);
+    if (!type || !wifi || !addrText) {
+      showToast('Please fill in all required fields.');
+      return;
+    }
 
+    setStatus('Finding that place…');
+    const coords = await smartGeocode(name + ' ' + addrText);
+    if (!coords) {
+      setStatus('');
+      alert("Couldn't find that place. Try adding a suburb or nearby landmark.");
+      return;
+    }
+
+    const pin = {
+      id: Date.now(),
+      name,
+      type,
+      wifi,
+      rawAddress: addrText,
+      notes,
+      lat: coords[0],
+      lng: coords[1]
+    };
+    pins.push(pin);
+    savePins();
+    renderPinsOnMap();
+    renderPinList();
+
+    map.setView(coords, 13);
+    setStatus('');
+    showToast('Spot added!');
+  }
+
+  document.getElementById('wifi-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    await addPinFromForm();
     e.target.reset();
     map.invalidateSize();
   });
 
-  /* RECENTER BUTTON */
-  document.getElementById('refresh-location').addEventListener('click', () => {
-    if (userLatLng) {
-      map.setView(userLatLng, 13);
-      if (userMarker) userMarker.openPopup();
-    } else {
-      alert('User location not available. Check browser location permissions.');
-    }
-  });
+  function setupAutocomplete(inputEl, listEl, sourceArray) {
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value.toLowerCase();
+      if (!val) {
+        listEl.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+      }
+      const matches = sourceArray.filter(item => item.toLowerCase().includes(val)).slice(0, 8);
+      if (!matches.length) {
+        listEl.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+      }
+      listEl.innerHTML = '';
+      matches.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.textContent = m;
+        div.onclick = () => {
+          inputEl.value = m;
+          listEl.style.display = 'none';
+          listEl.innerHTML = '';
+        };
+        listEl.appendChild(div);
+      });
+      listEl.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!listEl.contains(e.target) && e.target !== inputEl) {
+        listEl.style.display = 'none';
+      }
+    });
+  }
+
+  setupAutocomplete(nameInput, nameAC, commonNames);
+  setupAutocomplete(addressInput, addressAC, commonAddresses);
 
   window.addEventListener('resize', () => map.invalidateSize());
 });
 </script>
+</body>
+</html>
