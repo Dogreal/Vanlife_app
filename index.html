@@ -322,11 +322,25 @@
   <div id="vanlife-app">
     <div style="text-align:center;">
       <h2>Vanlife Savings Spots</h2>
-      <p>Find, save, and refine your favourite vanlife spots.</p>
+      <p>Find free Wi‑Fi, free camping, cheap cafes, libraries, toilets and traveller‑friendly spots across Australia — especially for retirees and over‑50s planning practical vanlife.</p>
     </div>
 
     <div id="vanlife-map">
       <div id="map-overlay">Tap to unlock and explore the map</div>
+    </div>
+
+    <!-- Related posts + micro SEO block -->
+    <div class="related-posts" style="background:#fef3e0;margin-top:16px;padding:12px;border-radius:12px;color:#111827;">
+      <h3 style="margin-top:0;font-size:1rem;color:#b45309;">Vanlife Guides & Tips</h3>
+      <ul style="margin:0;padding-left:18px;font-size:0.9rem;line-height:1.4;">
+        <li><a href="https://retiretovanlife.com/free-camping-vs-overnight-parking-australia/" target="_blank" style="color:#b45309;">Free Camping vs Overnight Parking in Australia</a></li>
+        <li><a href="https://retiretovanlife.com/vanlife-prep-checklist/" target="_blank" style="color:#b45309;">Vanlife Prep Checklist</a></li>
+        <li><a href="https://retiretovanlife.com/van-life-costs/" target="_blank" style="color:#b45309;">How Much Does Van Life Actually Cost?</a></li>
+      </ul>
+
+      <p style="margin-top:10px;font-size:0.8rem;color:#374151;">
+        This free vanlife map helps retirees, nomads, and budget travellers find free Wi‑Fi, free camping, safe overnight parking, cheap cafes, libraries, toilets, and traveller‑friendly spots across Australia.
+      </p>
     </div>
 
     <div id="status-bar"></div>
@@ -399,14 +413,17 @@
           <option value="No">No Free Wi‑Fi</option>
         </select>
 
-        <label for="spot-address">Location (e.g. “McDonalds Coolangatta”, “beach cafe Coolangatta”)</label>
+        <label for="spot-address">Location (enter address or place name + suburb)</label>
         <div class="autocomplete-box">
-          <input id="spot-address" placeholder="Name, description, or suburb (include suburb if you can)" required />
+          <input id="spot-address" placeholder="e.g. 123 Marine Parade Coolangatta, or 'free Wi‑Fi cafe Coolangatta'" required />
           <div id="address-autocomplete" class="autocomplete-list" style="display:none;"></div>
         </div>
+        <button type="button" id="use-map-address" style="margin-bottom:8px;background:#92400e;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:0.8rem;cursor:pointer;">
+          📇 Use map centre address
+        </button>
 
         <label for="spot-notes">Notes or tips (optional)</label>
-        <textarea id="spot-notes" rows="2" placeholder="e.g. good coffee, quiet, power points, shaded parking"></textarea>
+        <textarea id="spot-notes" rows="2" placeholder="Add tips like Wi‑Fi strength, parking, shade, safety, noise level, power points, toilets, or vanlife‑friendly features."></textarea>
 
         <button type="submit">Add Spot</button>
       </form>
@@ -439,6 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let map, markersLayer, userMarker;
   let mapLocked = true;
   let userLatLng = null;
+  let userSuburbGuess = '';
   let pins = [];
   let lastSubmitTime = 0;
 
@@ -455,6 +473,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const filterType = document.getElementById('filter-type');
   const filterFreeWifi = document.getElementById('filter-free-wifi');
   const searchPinsInput = document.getElementById('search-pins');
+  const useMapAddressBtn = document.getElementById('use-map-address');
 
   const emoji = {
     "Free Camping": '⛺',
@@ -482,8 +501,8 @@ document.addEventListener('DOMContentLoaded', function() {
   ];
 
   const commonAddresses = [
+    "123 Marine Parade Coolangatta",
     "Coolangatta QLD",
-    "Marine Parade Coolangatta",
     "Ballina NSW",
     "Coffs Harbour NSW",
     "Gold Coast QLD",
@@ -623,7 +642,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     pinList.innerHTML = '';
-    visiblePins.forEach((pin, index) => {
+    visiblePins.forEach(pin => {
       const div = document.createElement('div');
       div.className = 'pin-item';
       const span = document.createElement('span');
@@ -685,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     setStatus('Finding your location…');
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      async pos => {
         userLatLng = [pos.coords.latitude, pos.coords.longitude];
         setStatus('Location found.');
         if (!userMarker) {
@@ -698,6 +717,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (initial) {
           map.setView(userLatLng, 13);
         }
+        // Try to guess suburb once from user location
+        userSuburbGuess = await reverseGeocode(userLatLng[0], userLatLng[1]) || '';
       },
       err => {
         setStatus('Location is disabled. Turn on location in your browser settings.');
@@ -763,14 +784,34 @@ document.addEventListener('DOMContentLoaded', function() {
     map.fitBounds(group.getBounds().pad(0.3));
   });
 
-  document.getElementById('add-here').addEventListener('click', () => {
+  document.getElementById('add-here').addEventListener('click', async () => {
     if (!userLatLng) {
       showToast('Need your location first.');
       getUserLocation(true);
       return;
     }
-    document.getElementById('spot-address').value = 'Current location';
-    showToast('Form set to your current location – add name/type and save.');
+    const centre = map.getCenter();
+    const approx = await reverseGeocode(centre.lat, centre.lng);
+    if (approx) {
+      addressInput.value = approx;
+      showToast('Approximate address from map centre added.');
+    } else {
+      addressInput.value = 'Current location';
+      showToast('Form set to your current location – add name/type and save.');
+    }
+  });
+
+  useMapAddressBtn.addEventListener('click', async () => {
+    const centre = map.getCenter();
+    setStatus('Getting address from map centre…');
+    const approx = await reverseGeocode(centre.lat, centre.lng);
+    setStatus('');
+    if (approx) {
+      addressInput.value = approx;
+      showToast('Approximate address added from map centre.');
+    } else {
+      showToast('Could not get address from map centre.');
+    }
   });
 
   function distanceKm(lat1, lon1, lat2, lon2) {
@@ -807,6 +848,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne'];
     const hasSuburb = suburbKeywords.some(k => cleaned.toLowerCase().includes(k));
+    if (!hasSuburb && userSuburbGuess) {
+      queries.push(cleaned + ' ' + userSuburbGuess);
+    }
     if (!hasSuburb) {
       queries.push(cleaned + ' Australia');
     }
@@ -836,7 +880,9 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = await res.json();
       if (!data || !data.address) return '';
       const a = data.address;
-      return a.suburb || a.town || a.city || a.village || a.state || '';
+      return a.road && a.suburb
+        ? `${a.road}, ${a.suburb} ${a.state || ''}`.trim()
+        : (a.suburb || a.town || a.city || a.village || a.state || '');
     } catch(e) {
       return '';
     }
@@ -853,7 +899,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const name = document.getElementById('spot-name').value.trim() || 'Unnamed spot';
     const type = document.getElementById('spot-type').value;
     let wifiVal = document.getElementById('spot-wifi').value;
-    const addrText = document.getElementById('spot-address').value.trim();
+    let addrText = document.getElementById('spot-address').value.trim();
     const notes = document.getElementById('spot-notes').value.trim();
 
     if (!type || !wifiVal || !addrText) {
@@ -863,11 +909,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
 
+    // If no obvious suburb words and we have a guessed suburb, append it
+    const lowerAddr = addrText.toLowerCase();
+    const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
+    const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
+    if (!hasSuburb && userSuburbGuess) {
+      addrText = addrText + ' ' + userSuburbGuess;
+    }
+
     setStatus('Finding that place…');
     const geo = await smartGeocode(name + ' ' + addrText);
     if (!geo) {
       setStatus('');
-      alert("Couldn't find that place. Try adding a suburb or nearby landmark.");
+      alert("Couldn't find that place. Try including a suburb or use the 'Use map centre address' button.");
       return;
     }
     const [lat, lng, displayName] = geo;
