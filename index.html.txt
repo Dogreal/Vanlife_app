@@ -1,0 +1,282 @@
+<!-- ========================= -->
+<!-- VANLIFE SAVINGS SPOTS APP -->
+<!-- ========================= -->
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+    #vanlife-app-wrapper {
+        width: 95%;
+        max-width: 900px;
+        margin: auto;
+        font-family: sans-serif;
+    }
+
+    /* Unlock button */
+    #unlock-map-btn {
+        width: 100%;
+        padding: 12px;
+        background: #b45309;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-bottom: 10px;
+    }
+
+    /* MAP CONTAINER — HARD FRAME (guaranteed visible) */
+    #vanlife-map {
+        width: 100% !important;
+        height: 420px !important;
+        min-height: 420px !important;
+        display: block !important;
+        border-radius: 12px;
+        background: #ddd; /* visible frame */
+        border: 2px solid #b45309;
+        overflow: hidden;
+        transition: opacity 0.3s ease;
+        opacity: 0.9; /* 10% dim when locked */
+        pointer-events: none; /* locked by default */
+    }
+
+    /* Re-center button */
+    #recenter-btn {
+        margin-top: 10px;
+        padding: 10px 16px;
+        background: #b45309;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    /* Form styling */
+    #wifi-form {
+        background: #fef3e0;
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 20px;
+    }
+
+    #wifi-form input,
+    #wifi-form select,
+    #wifi-form textarea {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        background: #fff8f0;
+    }
+
+    #wifi-form button {
+        background: #b45309;
+        color: white;
+        padding: 12px;
+        border: none;
+        border-radius: 6px;
+        width: 100%;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: bold;
+    }
+</style>
+
+<div id="vanlife-app-wrapper">
+
+    <h2 style="text-align:center; color:#b45309;">Vanlife Savings Spots</h2>
+
+    <!-- Unlock Map Button -->
+    <button id="unlock-map-btn">🔓 Unlock Map</button>
+
+    <!-- Map -->
+    <div id="vanlife-map"></div>
+
+    <!-- Re-center -->
+    <button id="recenter-btn">📍 Re-center Map</button>
+
+    <!-- Add Spot Form -->
+    <form id="wifi-form">
+        <input id="spot-name" type="text" placeholder="Spot name" required />
+
+        <select id="spot-type" required>
+            <option value="">Type</option>
+            <option value="Library">Library</option>
+            <option value="McDonald's">McDonald's</option>
+            <option value="Cafe">Cafe</option>
+            <option value="Toilet">Toilet</option>
+            <option value="Park">Park</option>
+            <option value="Showground">Showground</option>
+            <option value="Other">Other</option>
+        </select>
+
+        <select id="spot-wifi" required>
+            <option value="">Wi-Fi?</option>
+            <option value="Yes">Yes</option>
+            <option value="No">No</option>
+        </select>
+
+        <input id="spot-address" type="text" placeholder="Address" required />
+
+        <textarea id="spot-notes" placeholder="Notes or tips (optional)"></textarea>
+
+        <button type="submit">Add Spot</button>
+    </form>
+
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    let map, markers, userMarker;
+    let mapLocked = true;
+
+    const mapDiv = document.getElementById("vanlife-map");
+    const unlockBtn = document.getElementById("unlock-map-btn");
+
+    const emoji = {
+        Library: "📚",
+        "McDonald's": "🍔",
+        Cafe: "☕",
+        Toilet: "🚻",
+        Park: "🌳",
+        Showground: "🏟️",
+        Other: "📍"
+    };
+
+    function createIcon(type) {
+        return L.divIcon({
+            html: `<div style="font-size:26px; background:white; border-radius:50%; padding:8px; box-shadow:0 2px 8px rgba(0,0,0,0.3)">${emoji[type] || "📍"}</div>`,
+            className: "",
+            iconSize: [40, 40],
+            iconAnchor: [20, 40]
+        });
+    }
+
+    // Unlock map
+    unlockBtn.addEventListener("click", () => {
+        mapLocked = false;
+        mapDiv.style.opacity = "1";
+        mapDiv.style.pointerEvents = "auto";
+        unlockBtn.style.display = "none";
+    });
+
+    // Initialize map
+    map = L.map("vanlife-map", {
+        zoomControl: true,
+        zoomAnimation: false,
+        renderer: L.canvas()
+    });
+
+    markers = L.layerGroup().addTo(map);
+
+    // Australia fallback
+    map.setView([-25.2744, 133.7751], 4);
+
+    // Load tiles
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap contributors"
+    }).addTo(map);
+
+    // Try to get user location
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+
+                userMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        html: "🚐",
+                        className: "",
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 30]
+                    })
+                }).addTo(map).bindPopup("Your Location");
+
+                map.setView([lat, lng], 14);
+            },
+            () => {
+                console.log("Geolocation failed, using Australia fallback.");
+            }
+        );
+    }
+
+    // Geocode function
+    async function geocode(address) {
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ", Australia")}&limit=1&countrycodes=au`
+            );
+            const data = await res.json();
+            return data.length ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // Add pin
+    async function addPin(addr, name, type, wifi, notes, focus = false) {
+        const coords = await geocode(addr);
+        if (!coords) {
+            alert("❌ Address not found.");
+            return;
+        }
+
+        const popup = `
+            <div style="min-width:200px;">
+                <b style="color:#b45309;">${name}</b><br>
+                <b>${type}</b><br>
+                Wi-Fi: <span style="color:${wifi === "Yes" ? "green" : "red"}">${wifi}</span><br>
+                ${notes ? `<i>${notes}</i>` : ""}
+                <br><br>
+                <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+                    addr
+                )}" target="_blank" style="color:#b45309;">📱 Directions</a>
+            </div>
+        `;
+
+        L.marker(coords, { icon: createIcon(type) })
+            .addTo(markers)
+            .bindPopup(popup);
+
+        if (focus) map.setView(coords, 14);
+    }
+
+    // Form submit
+    document.getElementById("wifi-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        await addPin(
+            document.getElementById("spot-address").value,
+            document.getElementById("spot-name").value,
+            document.getElementById("spot-type").value,
+            document.getElementById("spot-wifi").value,
+            document.getElementById("spot-notes").value,
+            true
+        );
+
+        e.target.reset();
+        map.invalidateSize();
+    });
+
+    // Re-center
+    document.getElementById("recenter-btn").addEventListener("click", () => {
+        if (userMarker) {
+            map.setView(userMarker.getLatLng(), 14);
+            userMarker.openPopup();
+        } else {
+            alert("User location not available");
+        }
+    });
+
+});
+</script>
