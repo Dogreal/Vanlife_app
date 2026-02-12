@@ -5,7 +5,6 @@
 <title>Vanlife Savings Spots</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <style>
@@ -87,8 +86,7 @@
     margin-top: 8px;
   }
 
-  #refresh-location,
-  #show-my-pins {
+  .control-button {
     flex: 1 1 140px;
     padding: 8px 10px;
     background:#b45309;
@@ -103,9 +101,28 @@
     gap: 4px;
   }
 
-  #refresh-location span,
-  #show-my-pins span {
+  .control-button span {
     font-size: 1.1rem;
+  }
+
+  #filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 0.8rem;
+  }
+
+  #filters-row select,
+  #filters-row label {
+    font-size: 0.8rem;
+  }
+
+  #filters-row select {
+    padding: 4px 6px;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #fff7ed;
   }
 
   #wifi-form-wrapper {
@@ -252,7 +269,7 @@
   #pin-list {
     margin-top: 10px;
     font-size: 0.8rem;
-    max-height: 160px;
+    max-height: 180px;
     overflow-y: auto;
     background: rgba(17,24,39,0.15);
     border-radius: 8px;
@@ -293,8 +310,7 @@
     #vanlife-map {
       height: 360px !important;
     }
-    #refresh-location,
-    #show-my-pins {
+    .control-button {
       font-size: 0.8rem;
     }
   }
@@ -316,8 +332,42 @@
     <div id="status-bar"></div>
 
     <div id="controls-row">
-      <button id="refresh-location"><span>📍</span> Locate Me</button>
-      <button id="show-my-pins"><span>⭐</span> My Saved Spots</button>
+      <button id="refresh-location" class="control-button"><span>📍</span> Locate Me</button>
+      <button id="show-my-pins" class="control-button"><span>⭐</span> My Saved Spots</button>
+      <button id="show-near-me" class="control-button"><span>📡</span> Spots Near Me</button>
+      <button id="add-here" class="control-button"><span>➕</span> Add Spot Here</button>
+    </div>
+
+    <div id="filters-row">
+      <div>
+        <label for="filter-type"><b>Type filter:</b></label>
+        <select id="filter-type">
+          <option value="">All types</option>
+          <option value="Free Camping">Free Camping</option>
+          <option value="Library">Library</option>
+          <option value="McDonald's">McDonald's</option>
+          <option value="Cafe">Cafe</option>
+          <option value="Toilet">Toilet</option>
+          <option value="Park">Park</option>
+          <option value="Showground">Showground</option>
+          <option value="Hotel / Motel">Hotel / Motel</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div>
+        <label><input type="checkbox" id="filter-free-wifi" /> Free Wi‑Fi only</label>
+      </div>
+      <div style="flex:1;">
+        <label for="search-pins"><b>Search spots:</b></label>
+        <input id="search-pins" placeholder="Search by name, type, notes, suburb…" style="width:100%;padding:4px 6px;border-radius:6px;border:1px solid #d1d5db;background:#fff7ed;font-size:0.8rem;" />
+      </div>
+      <div>
+        <button id="export-pins" class="control-button" style="padding:4px 8px;font-size:0.75rem;"><span>⬇️</span> Export</button>
+      </div>
+      <div>
+        <label for="import-file" style="font-size:0.75rem;font-weight:600;">Import</label>
+        <input type="file" id="import-file" accept="application/json" style="font-size:0.75rem;" />
+      </div>
     </div>
 
     <div id="wifi-form-wrapper">
@@ -345,13 +395,13 @@
         <label for="spot-wifi">Free Wi‑Fi available?</label>
         <select id="spot-wifi" required>
           <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
+          <option value="Yes">Yes – Free Wi‑Fi</option>
+          <option value="No">No Free Wi‑Fi</option>
         </select>
 
         <label for="spot-address">Location (e.g. “McDonalds Coolangatta”, “beach cafe Coolangatta”)</label>
         <div class="autocomplete-box">
-          <input id="spot-address" placeholder="e.g. maccas near the beach in Coolangatta, library in Ballina, free wifi at surf club" required />
+          <input id="spot-address" placeholder="Name, description, or suburb (include suburb if you can)" required />
           <div id="address-autocomplete" class="autocomplete-list" style="display:none;"></div>
         </div>
 
@@ -382,7 +432,6 @@
 
 <div id="toast"></div>
 
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
@@ -402,6 +451,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const addressInput = document.getElementById('spot-address');
   const nameAC = document.getElementById('name-autocomplete');
   const addressAC = document.getElementById('address-autocomplete');
+
+  const filterType = document.getElementById('filter-type');
+  const filterFreeWifi = document.getElementById('filter-free-wifi');
+  const searchPinsInput = document.getElementById('search-pins');
 
   const emoji = {
     "Free Camping": '⛺',
@@ -449,10 +502,14 @@ document.addEventListener('DOMContentLoaded', function() {
     statusBar.textContent = msg || '';
   }
 
-  function createIcon(type) {
+  function createIcon(type, wifi) {
+    let iconChar = emoji[type] || '📍';
+    let wifiBadge = wifi === 'Yes' ? '📶' : '';
     return L.divIcon({
-      html: `<div style="font-size:22px;background:white;border-radius:50%;padding:6px;
-             box-shadow:0 2px 8px rgba(0,0,0,0.3)">${emoji[type] || '📍'}</div>`,
+      html: `<div style="font-size:20px;background:white;border-radius:50%;padding:6px;
+             box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+               <span>${iconChar}</span><span style="margin-left:2px;font-size:14px;">${wifiBadge}</span>
+             </div>`,
       className: '',
       iconSize: [36, 36],
       iconAnchor: [18, 36]
@@ -515,17 +572,37 @@ document.addEventListener('DOMContentLoaded', function() {
     localStorage.setItem('vanlife_pins', JSON.stringify(pins));
   }
 
+  function matchesFilters(pin) {
+    if (filterType.value && pin.type !== filterType.value) return false;
+    if (filterFreeWifi.checked && pin.wifi !== 'Yes') return false;
+
+    const q = searchPinsInput.value.trim().toLowerCase();
+    if (!q) return true;
+
+    const haystack = [
+      pin.name || '',
+      pin.type || '',
+      pin.notes || '',
+      pin.rawAddress || '',
+      pin.suburb || ''
+    ].join(' ').toLowerCase();
+
+    return haystack.includes(q);
+  }
+
   function renderPinsOnMap() {
     markersLayer.clearLayers();
     pins.forEach(pin => {
-      const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type) });
+      if (!matchesFilters(pin)) return;
+      const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type, pin.wifi) });
       const destLabel = pin.name || 'Saved spot';
       const destParam = encodeURIComponent(destLabel + ' (' + pin.lat + ',' + pin.lng + ')');
       const popup = `
         <div style="min-width:200px;">
           <b style="color:#b45309;">${pin.name || 'Unnamed spot'}</b><br>
           <b>${pin.type}</b><br>
-          Wi‑Fi: <span style="color:${pin.wifi === 'Yes' ? 'green' : 'red'}">${pin.wifi}</span><br>
+          Free Wi‑Fi: <span style="color:${pin.wifi === 'Yes' ? 'green' : 'red'}">${pin.wifi === 'Yes' ? 'Yes' : 'No'}</span><br>
+          ${pin.suburb ? `<span>${pin.suburb}</span><br>` : ''}
           ${pin.notes ? `<i>${pin.notes}</i><br>` : ''}<br>
           <a href="https://www.google.com/maps/dir/?api=1&destination=${destParam}"
              target="_blank"
@@ -540,28 +617,29 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function renderPinList() {
-    if (!pins.length) {
-      pinList.innerHTML = '<div style="color:#e5e7eb;font-size:0.8rem;">No saved spots yet.</div>';
+    const visiblePins = pins.filter(matchesFilters);
+    if (!visiblePins.length) {
+      pinList.innerHTML = '<div style="color:#e5e7eb;font-size:0.8rem;">No spots match your filters yet.</div>';
       return;
     }
     pinList.innerHTML = '';
-    pins.forEach((pin, index) => {
+    visiblePins.forEach((pin, index) => {
       const div = document.createElement('div');
       div.className = 'pin-item';
       const span = document.createElement('span');
-      span.textContent = `${emoji[pin.type] || '📍'} ${pin.name || 'Unnamed'} (${pin.type})`;
+      span.textContent = `${emoji[pin.type] || '📍'} ${pin.name || 'Unnamed'} (${pin.type})${pin.suburb ? ' – ' + pin.suburb : ''}`;
       const actions = document.createElement('div');
       actions.className = 'pin-actions';
 
       const btnEdit = document.createElement('button');
       btnEdit.className = 'btn-edit';
       btnEdit.textContent = 'Edit';
-      btnEdit.onclick = () => editPin(index);
+      btnEdit.onclick = () => editPin(pin.id);
 
       const btnDelete = document.createElement('button');
       btnDelete.className = 'btn-delete';
       btnDelete.textContent = 'Delete';
-      btnDelete.onclick = () => deletePin(index);
+      btnDelete.onclick = () => deletePin(pin.id);
 
       actions.appendChild(btnEdit);
       actions.appendChild(btnDelete);
@@ -571,24 +649,25 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  function editPin(index) {
-    const pin = pins[index];
-    if (!pin) return;
+  function editPin(id) {
+    const idx = pins.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    const pin = pins[idx];
     document.getElementById('spot-name').value = pin.name;
     document.getElementById('spot-type').value = pin.type;
-    document.getElementById('spot-wifi').value = pin.wifi;
+    document.getElementById('spot-wifi').value = pin.wifi === 'Yes' ? 'Yes – Free Wi‑Fi' : 'No Free Wi‑Fi';
     document.getElementById('spot-address').value = pin.rawAddress || '';
     document.getElementById('spot-notes').value = pin.notes || '';
-    pins.splice(index, 1);
+    pins.splice(idx, 1);
     savePins();
     renderPinsOnMap();
     renderPinList();
     showToast('Loaded spot into form for editing');
   }
 
-  function deletePin(index) {
+  function deletePin(id) {
     if (!confirm('Delete this spot?')) return;
-    pins.splice(index, 1);
+    pins = pins.filter(p => p.id !== id);
     savePins();
     renderPinsOnMap();
     renderPinList();
@@ -652,15 +731,59 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('show-my-pins').addEventListener('click', () => {
-    if (!pins.length) {
-      showToast('No saved spots yet.');
+    const visiblePins = pins.filter(matchesFilters);
+    if (!visiblePins.length) {
+      showToast('No spots match your filters yet.');
       return;
     }
     const group = L.featureGroup(
-      pins.map(p => L.marker([p.lat, p.lng]))
+      visiblePins.map(p => L.marker([p.lat, p.lng]))
     );
     map.fitBounds(group.getBounds().pad(0.3));
   });
+
+  document.getElementById('show-near-me').addEventListener('click', () => {
+    if (!userLatLng) {
+      showToast('Need your location first.');
+      getUserLocation(true);
+      return;
+    }
+    const maxKm = 10;
+    const nearPins = pins.filter(p => {
+      const d = distanceKm(userLatLng[0], userLatLng[1], p.lat, p.lng);
+      return d <= maxKm && matchesFilters(p);
+    });
+    if (!nearPins.length) {
+      showToast('No spots within 10 km that match filters.');
+      return;
+    }
+    const group = L.featureGroup(
+      nearPins.map(p => L.marker([p.lat, p.lng]))
+    );
+    map.fitBounds(group.getBounds().pad(0.3));
+  });
+
+  document.getElementById('add-here').addEventListener('click', () => {
+    if (!userLatLng) {
+      showToast('Need your location first.');
+      getUserLocation(true);
+      return;
+    }
+    document.getElementById('spot-address').value = 'Current location';
+    showToast('Form set to your current location – add name/type and save.');
+  });
+
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2-lat1) * Math.PI/180;
+    const dLon = (lon2-lon1) * Math.PI/180;
+    const a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
 
   async function smartGeocode(rawText) {
     const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au';
@@ -700,9 +823,22 @@ document.addEventListener('DOMContentLoaded', function() {
       const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
       const data = await res.json();
       if (!data || !data.length) return null;
-      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name || ''];
     } catch(e) {
       return null;
+    }
+  }
+
+  async function reverseGeocode(lat, lon) {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=14&addressdetails=1`;
+    try {
+      const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+      const data = await res.json();
+      if (!data || !data.address) return '';
+      const a = data.address;
+      return a.suburb || a.town || a.city || a.village || a.state || '';
+    } catch(e) {
+      return '';
     }
   }
 
@@ -716,39 +852,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const name = document.getElementById('spot-name').value.trim() || 'Unnamed spot';
     const type = document.getElementById('spot-type').value;
-    const wifi = document.getElementById('spot-wifi').value;
+    let wifiVal = document.getElementById('spot-wifi').value;
     const addrText = document.getElementById('spot-address').value.trim();
     const notes = document.getElementById('spot-notes').value.trim();
 
-    if (!type || !wifi || !addrText) {
+    if (!type || !wifiVal || !addrText) {
       showToast('Please fill in all required fields.');
       return;
     }
 
+    wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
+
     setStatus('Finding that place…');
-    const coords = await smartGeocode(name + ' ' + addrText);
-    if (!coords) {
+    const geo = await smartGeocode(name + ' ' + addrText);
+    if (!geo) {
       setStatus('');
       alert("Couldn't find that place. Try adding a suburb or nearby landmark.");
       return;
     }
+    const [lat, lng, displayName] = geo;
+    const suburb = await reverseGeocode(lat, lng);
 
     const pin = {
       id: Date.now(),
       name,
       type,
-      wifi,
+      wifi: wifiVal,
       rawAddress: addrText,
       notes,
-      lat: coords[0],
-      lng: coords[1]
+      lat,
+      lng,
+      suburb
     };
     pins.push(pin);
     savePins();
     renderPinsOnMap();
     renderPinList();
 
-    map.setView(coords, 13);
+    map.setView([lat, lng], 13);
     setStatus('');
     showToast('Spot added!');
   }
@@ -760,7 +901,7 @@ document.addEventListener('DOMContentLoaded', function() {
     map.invalidateSize();
   });
 
-  function setupAutocomplete(inputEl, listEl, sourceArray) {
+  function setupLocalAutocomplete(inputEl, listEl, sourceArray) {
     inputEl.addEventListener('input', () => {
       const val = inputEl.value.toLowerCase();
       if (!val) {
@@ -796,15 +937,113 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  setupAutocomplete(nameInput, nameAC, commonNames);
-  setupAutocomplete(addressInput, addressAC, commonAddresses);
+  async function setupRemoteAutocomplete(inputEl, listEl) {
+    let lastQuery = '';
+    let lastTimeout = null;
+
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value.trim();
+      if (!val) {
+        listEl.style.display = 'none';
+        listEl.innerHTML = '';
+        return;
+      }
+      if (lastTimeout) clearTimeout(lastTimeout);
+      lastTimeout = setTimeout(async () => {
+        if (val === lastQuery) return;
+        lastQuery = val;
+        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=au&q=' + encodeURIComponent(val);
+        try {
+          const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+          const data = await res.json();
+          if (!Array.isArray(data) || !data.length) {
+            listEl.style.display = 'none';
+            listEl.innerHTML = '';
+            return;
+          }
+          listEl.innerHTML = '';
+          data.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.textContent = item.display_name;
+            div.onclick = () => {
+              inputEl.value = item.display_name;
+              listEl.style.display = 'none';
+              listEl.innerHTML = '';
+            };
+            listEl.appendChild(div);
+          });
+          listEl.style.display = 'block';
+        } catch(e) {
+          listEl.style.display = 'none';
+          listEl.innerHTML = '';
+        }
+      }, 300);
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!listEl.contains(e.target) && e.target !== inputEl) {
+        listEl.style.display = 'none';
+      }
+    });
+  }
+
+  setupLocalAutocomplete(nameInput, nameAC, commonNames);
+  setupLocalAutocomplete(addressInput, addressAC, commonAddresses);
+  setupRemoteAutocomplete(addressInput, addressAC);
+
+  filterType.addEventListener('change', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+  filterFreeWifi.addEventListener('change', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+  searchPinsInput.addEventListener('input', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+
+  document.getElementById('export-pins').addEventListener('click', () => {
+    if (!pins.length) {
+      showToast('No spots to export.');
+      return;
+    }
+    const blob = new Blob([JSON.stringify(pins, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vanlife_spots.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Exported spots.');
+  });
+
+  document.getElementById('import-file').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target.result);
+        if (!Array.isArray(imported)) throw new Error('Invalid format');
+        pins = imported;
+        savePins();
+        renderPinsOnMap();
+        renderPinList();
+        showToast('Imported spots.');
+      } catch(err) {
+        alert('Invalid file format.');
+      }
+    };
+    reader.readAsText(file);
+  });
 
   window.addEventListener('resize', () => map.invalidateSize());
 });
 </script>
 </body>
 </html>
-
-
-
-
