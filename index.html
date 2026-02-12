@@ -40,8 +40,8 @@
           <option value="No">No</option>
         </select><br><br>
 
-        <input id="spot-address" placeholder="Address" required><br><br>
-        <textarea id="spot-notes" rows="2" placeholder="Notes or tips"></textarea><br><br>
+        <input id="spot-address" placeholder="Describe or type the place (e.g. 'maccas near the beach in Coolangatta')" required><br><br>
+        <textarea id="spot-notes" rows="2" placeholder="Notes or tips (optional)"></textarea><br><br>
 
         <button type="submit">Add Spot</button>
       </form>
@@ -188,6 +188,7 @@
 document.addEventListener('DOMContentLoaded', function() {
   let map, markers, userMarker;
   let mapLocked = true;
+  let userLatLng = null;
 
   const overlay = document.getElementById('map-overlay');
 
@@ -258,8 +259,6 @@ document.addEventListener('DOMContentLoaded', function() {
   updateMapLock();
 
   /* GET USER LOCATION */
-  let userLatLng = null;
-
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(pos => {
       userLatLng = [pos.coords.latitude, pos.coords.longitude];
@@ -270,28 +269,61 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  /* UNLOCK MAP → CENTER ON USER */
+  /* UNLOCK MAP → CENTER ON USER IF AVAILABLE */
   overlay.addEventListener('click', function() {
     mapLocked = false;
     overlay.style.display = 'none';
     updateMapLock();
 
     if (userLatLng) {
-      map.setView(userLatLng, 13); // zoom level where van is clearly visible
+      map.setView(userLatLng, 13);
       if (userMarker) userMarker.openPopup();
+    } else {
+      // If no user location, just zoom into Australia a bit more
+      map.setView([-25.2744, 133.7751], 5);
     }
 
     setTimeout(() => map.invalidateSize(), 200);
   });
 
-  /* GEOCODER */
-  async function geocode(address) {
+  /* SMART HUMAN-FRIENDLY GEOCODER */
+  async function smartGeocode(rawText) {
+    const base = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au';
+
+    // 1) Try raw text as-is (Nominatim is pretty tolerant)
+    let url1 = `${base}&q=${encodeURIComponent(rawText)}`;
+    let coords = await tryGeocode(url1);
+    if (coords) return coords;
+
+    // 2) If we know user location, bias search near them
+    if (userLatLng) {
+      const nearText = `${rawText} near ${userLatLng[0]}, ${userLatLng[1]}`;
+      let url2 = `${base}&q=${encodeURIComponent(nearText)}`;
+      coords = await tryGeocode(url2);
+      if (coords) return coords;
+    }
+
+    // 3) Fallback: use last 2–3 words (often suburb/area)
+    const tokens = rawText.split(/\s+/).filter(t => t.length > 2);
+    if (tokens.length >= 2) {
+      const tail = tokens.slice(-3).join(' ');
+      let url3 = `${base}&q=${encodeURIComponent(tail)}`;
+      coords = await tryGeocode(url3);
+      if (coords) return coords;
+    }
+
+    return null;
+  }
+
+  async function tryGeocode(url) {
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Australia')}&limit=1&countrycodes=au`
-      );
+      const res = await fetch(url, {
+        headers: {
+          'Accept-Language': 'en'
+        }
+      });
       const data = await res.json();
-      if (!data.length) return null;
+      if (!data || !data.length) return null;
       return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
     } catch (e) {
       return null;
@@ -299,10 +331,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   /* ADD PIN */
-  async function addPin(addr, name, type, wifi, notes, focus = false) {
-    const coords = await geocode(addr);
+  async function addPin(addrText, name, type, wifi, notes, focus = false) {
+    const coords = await smartGeocode(addrText);
     if (!coords) {
-      alert("❌ Address not found.");
+      alert("❌ Couldn't find that place. Try adding a nearby suburb or landmark name.");
       return;
     }
 
@@ -312,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <b>${type}</b><br>
         Wi-Fi: <span style="color:${wifi === 'Yes' ? 'green' : 'red'}">${wifi}</span><br>
         ${notes ? `<i>${notes}</i>` : ''}<br><br>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}"
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addrText)}"
            target="_blank"
            style="color:#b45309;">
           📱 Directions
@@ -333,14 +365,13 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('wifi-form').addEventListener('submit', async e => {
     e.preventDefault();
 
-    await addPin(
-      document.getElementById('spot-address').value,
-      document.getElementById('spot-name').value,
-      document.getElementById('spot-type').value,
-      document.getElementById('spot-wifi').value,
-      document.getElementById('spot-notes').value,
-      true
-    );
+    const name = document.getElementById('spot-name').value.trim() || 'Unnamed spot';
+    const type = document.getElementById('spot-type').value;
+    const wifi = document.getElementById('spot-wifi').value;
+    const addrText = document.getElementById('spot-address').value.trim();
+    const notes = document.getElementById('spot-notes').value.trim();
+
+    await addPin(addrText, name, type, wifi, notes, true);
 
     e.target.reset();
     map.invalidateSize();
@@ -352,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
       map.setView(userLatLng, 13);
       if (userMarker) userMarker.openPopup();
     } else {
-      alert('User location not available');
+      alert('User location not available. Check browser location permissions.');
     }
   });
 
