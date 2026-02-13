@@ -495,6 +495,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const searchPinsInput = document.getElementById('search-pins');
   const useMapAddressBtn = document.getElementById('use-map-address');
 
+  const advancedToggle = document.getElementById('advanced-tools-toggle');
+  const advancedPanel = document.getElementById('advanced-tools-panel');
+  const exportBtn = document.getElementById('export-pins');
+
   const emoji = {
     "Free Camping": '⛺',
     Library: '📚',
@@ -564,6 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // Map init
   map = L.map('vanlife-map', {
     zoomControl: true,
     zoomAnimation: false,
@@ -804,11 +809,6 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   document.getElementById('add-here').addEventListener('click', async () => {
-    if (!userLatLng) {
-      showToast('Need your location first.');
-      getUserLocation(true);
-      return;
-    }
     const centre = map.getCenter();
     const approx = await reverseGeocode(centre.lat, centre.lng);
     if (approx) {
@@ -850,28 +850,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const cleaned = rawText.trim();
     if (!cleaned) return null;
 
-    const tokens = cleaned.split(/\s+/);
-    const suburbTail = tokens.slice(-3).join(' ');
-
     const queries = [];
 
+    // 1) As entered
     queries.push(cleaned);
 
+    // 2) As entered + Australia
+    queries.push(cleaned + ' Australia');
+
+    // 3) If we know user location, bias by nearby
     if (userLatLng) {
       queries.push(cleaned + ' near ' + userLatLng[0] + ',' + userLatLng[1]);
     }
 
-    if (tokens.length >= 2) {
-      queries.push(suburbTail);
-    }
-
-    const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne'];
+    // 4) If address is very short and we have a suburb guess, try that as an extra query
+    const wordCount = cleaned.split(/\s+/).length;
+    const suburbKeywords = ['nsw','qld','vic','sa','wa','tas','act','coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne'];
     const hasSuburb = suburbKeywords.some(k => cleaned.toLowerCase().includes(k));
-    if (!hasSuburb && userSuburbGuess) {
+    if (wordCount <= 4 && !hasSuburb && userSuburbGuess) {
       queries.push(cleaned + ' ' + userSuburbGuess);
-    }
-    if (!hasSuburb) {
-      queries.push(cleaned + ' Australia');
     }
 
     for (let q of queries) {
@@ -899,9 +896,10 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = await res.json();
       if (!data || !data.address) return '';
       const a = data.address;
-      return a.road && a.suburb
-        ? `${a.road}, ${a.suburb} ${a.state || ''}`.trim()
-        : (a.suburb || a.town || a.city || a.village || a.state || '');
+      if (a.road && a.suburb) {
+        return `${a.road}, ${a.suburb} ${a.state || ''}`.trim();
+      }
+      return (a.suburb || a.town || a.city || a.village || a.state || '').trim();
     } catch(e) {
       return '';
     }
@@ -928,21 +926,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
 
-    const lowerAddr = addrText.toLowerCase();
-    const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
-    const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
-    if (!hasSuburb && userSuburbGuess) {
-      addrText = addrText + ' ' + userSuburbGuess;
+    setStatus('Finding that place…');
+
+    // First try address only
+    let geo = await smartGeocode(addrText);
+
+    // If that fails, try name + address as a fallback
+    if (!geo) {
+      geo = await smartGeocode(name + ' ' + addrText);
     }
 
-    setStatus('Finding that place…');
-    const geo = await smartGeocode(name + ' ' + addrText);
     if (!geo) {
       setStatus('');
       alert("Couldn't find that place. Try including a suburb or use the 'Use map centre address' button.");
       return;
     }
-    const [lat, lng, displayName] = geo;
+
+    const [lat, lng] = geo;
     const suburb = await reverseGeocode(lat, lng);
 
     const pin = {
@@ -986,7 +986,9 @@ document.addEventListener('DOMContentLoaded', function() {
       const div = document.createElement('div');
       div.className = 'autocomplete-item';
       div.textContent = item;
-      div.addEventListener('mousedown', () => {
+      // mousedown so it fires before input loses focus (mobile friendly)
+      div.addEventListener('mousedown', (e) => {
+        e.preventDefault();
         if (listEl === nameAC) nameInput.value = item;
         if (listEl === addressAC) addressInput.value = item;
         listEl.style.display = 'none';
@@ -996,64 +998,94 @@ document.addEventListener('DOMContentLoaded', function() {
     listEl.style.display = 'block';
   }
 
-  function stickyAutocomplete(inputEl, listEl, sourceList) {
-    inputEl.addEventListener('input', () => {
-      const val = inputEl.value.trim().toLowerCase();
-      if (!val) {
-        listEl.style.display = 'none';
-        return;
-      }
-      const matches = sourceList.filter(x => x.toLowerCase().includes(val));
-      showAutocomplete(listEl, matches);
-    });
+  // Name autocomplete
+  nameInput.addEventListener('input', () => {
+    const val = nameInput.value.trim().toLowerCase();
+    if (!val) {
+      nameAC.style.display = 'none';
+      return;
+    }
+    const matches = commonNames.filter(n => n.toLowerCase().includes(val)).slice(0, 8);
+    showAutocomplete(nameAC, matches);
+  });
 
-    inputEl.addEventListener('blur', () => {
-      setTimeout(() => {
-        listEl.style.display = 'none';
-      }, 150);
-    });
-  }
+  // Address autocomplete
+  addressInput.addEventListener('input', () => {
+    const val = addressInput.value.trim().toLowerCase();
+    if (!val) {
+      addressAC.style.display = 'none';
+      return;
+    }
+    const matches = commonAddresses.filter(a => a.toLowerCase().includes(val)).slice(0, 8);
+    showAutocomplete(addressAC, matches);
+  });
 
-  stickyAutocomplete(nameInput, nameAC, commonNames);
-  stickyAutocomplete(addressInput, addressAC, commonAddresses);
-  /* -----------------------------
-     EXPORT FUNCTION (Advanced Tools)
-     ----------------------------- */
+  // Hide on Escape
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      nameAC.style.display = 'none';
+    }
+  });
+  addressInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      addressAC.style.display = 'none';
+    }
+  });
 
-  document.getElementById('export-pins').addEventListener('click', () => {
+  // Click outside to close autocomplete
+  document.addEventListener('click', (e) => {
+    if (!nameAC.contains(e.target) && e.target !== nameInput) {
+      nameAC.style.display = 'none';
+    }
+    if (!addressAC.contains(e.target) && e.target !== addressInput) {
+      addressAC.style.display = 'none';
+    }
+  });
+
+  // Filters and search
+  filterType.addEventListener('change', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+  filterFreeWifi.addEventListener('change', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+  searchPinsInput.addEventListener('input', () => {
+    renderPinsOnMap();
+    renderPinList();
+  });
+
+  // Advanced tools toggle
+  advancedToggle.addEventListener('click', () => {
+    if (advancedPanel.style.display === 'block') {
+      advancedPanel.style.display = 'none';
+      advancedToggle.textContent = 'Advanced Tools ▼';
+    } else {
+      advancedPanel.style.display = 'block';
+      advancedToggle.textContent = 'Advanced Tools ▲';
+    }
+  });
+
+  // Export pins as JSON
+  exportBtn.addEventListener('click', () => {
     if (!pins.length) {
       showToast('No spots to export yet.');
       return;
     }
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(pins, null, 2));
+    const blob = new Blob([JSON.stringify(pins, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.setAttribute("href", dataStr);
-    a.setAttribute("download", "my-vanlife-spots.json");
+    a.href = url;
+    a.download = 'vanlife_spots_export.json';
     document.body.appendChild(a);
     a.click();
-    a.remove();
-    showToast('Your spots have been exported.');
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Exported your spots as JSON.');
   });
 
-  /* -----------------------------
-     ADVANCED TOOLS TOGGLE
-     ----------------------------- */
-
-  const advToggle = document.getElementById('advanced-tools-toggle');
-  const advPanel = document.getElementById('advanced-tools-panel');
-
-  advToggle.addEventListener('click', () => {
-    if (advPanel.style.display === 'block') {
-      advPanel.style.display = 'none';
-      advToggle.textContent = 'Advanced Tools ▼';
-    } else {
-      advPanel.style.display = 'block';
-      advToggle.textContent = 'Advanced Tools ▲';
-    }
-  });
-
-}); // END DOMContentLoaded
+});
 </script>
-
 </body>
 </html>
