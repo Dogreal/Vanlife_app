@@ -305,7 +305,8 @@
 
   #advanced-tools-toggle {
     margin-top: 12px;
-    background: #92400e;    color: white;
+    background: #92400e;
+    color: white;
     padding: 8px 10px;
     border-radius: 6px;
     cursor: pointer;
@@ -543,7 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function createIcon(type, wifi) {
     let iconChar = emoji[type] || '📍';
     let wifiBadge = wifi === 'Yes' ? '📶' : '';
-    return L.divIcon({ style: '',
+    return L.divIcon({
       html: `<div style="font-size:20px;background:white;border-radius:50%;padding:6px;
              box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
                <span>${iconChar}</span><span style="margin-left:2px;font-size:14px;">${wifiBadge}</span>
@@ -630,22 +631,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function renderPinsOnMap() {
     markersLayer.clearLayers();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
     pins.forEach(pin => {
       if (!matchesFilters(pin)) return;
       const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type, pin.wifi) });
       
-      // FIX: detect user agent for correct maps link and use rawAddress
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      const addrForLink = encodeURIComponent(pin.rawAddress || '');
-      let mapsUrl;
-      if (isIOS) {
-        // Apple Maps
-        mapsUrl = `http://maps.apple.com/?daddr=${addrForLink}&dirflg=d`;
-      } else {
-        // Google Maps
-        mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${addrForLink}`;
-      }
-      
+      // Use rawAddress for directions. This ensures navigation works based on user input.
+      const addressParam = encodeURIComponent(pin.rawAddress);
+      const mapsUrl = isIOS 
+        ? `http://maps.apple.com/?daddr=${addressParam}&dirflg=d` 
+        : `https://www.google.com/maps/dir/?api=1&destination=${addressParam}`;
+
       const popup = `
         <div style="min-width:200px;">
           <b style="color:#b45309;">${pin.name || 'Unnamed spot'}</b><br>
@@ -655,7 +652,7 @@ document.addEventListener('DOMContentLoaded', function() {
           ${pin.notes ? `<i>${pin.notes}</i><br>` : ''}<br>
           <a href="${mapsUrl}"
              target="_blank"
-             style="color:#b45309;">
+             style="color:#b45309;font-weight:bold;">
             📱 Directions
           </a>
         </div>
@@ -928,6 +925,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const name = document.getElementById('spot-name').value.trim() || 'Unnamed spot';
     const type = document.getElementById('spot-type').value;
     let wifiVal = document.getElementById('spot-wifi').value;
+    // Capture the raw address exactly as typed
     const rawAddress = document.getElementById('spot-address').value.trim();
     const notes = document.getElementById('spot-notes').value.trim();
 
@@ -938,26 +936,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
 
-    // FIX: do not modify rawAddress for storage. 
-    // Use a separate search string for the geocoder logic.
-    let searchStr = rawAddress;
-    const lowerAddr = rawAddress.toLowerCase();
+    // Create a separate variable for searching coordinates so we don't modify rawAddress
+    let searchAddress = rawAddress;
+    const lowerAddr = searchAddress.toLowerCase();
     const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
     const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
     
-    // If no suburb/state detected in input, give the geocoder a hint (but don't change saved address)
+    // Append user suburb context only for the search query to help finding lat/lng
     if (!hasSuburb && userSuburbGuess) {
-      searchStr = rawAddress + ' ' + userSuburbGuess;
+      searchAddress = searchAddress + ' ' + userSuburbGuess;
     }
 
     setStatus('Finding that place…');
-    const geo = await smartGeocode(name + ' ' + searchStr);
+    const geo = await smartGeocode(name + ' ' + searchAddress);
     if (!geo) {
       setStatus('');
       alert("Couldn't find that place. Try including a suburb or use the 'Use map centre address' button.");
       return;
     }
     const [lat, lng, displayName] = geo;
+    
+    // Optional: get suburb just for the pin info, but don't overwrite rawAddress
     const suburb = await reverseGeocode(lat, lng);
 
     const pin = {
@@ -965,7 +964,7 @@ document.addEventListener('DOMContentLoaded', function() {
       name,
       type,
       wifi: wifiVal,
-      rawAddress: rawAddress, // STORE EXACT INPUT
+      rawAddress: rawAddress, // Save the EXACT user input for navigation
       notes,
       lat,
       lng,
