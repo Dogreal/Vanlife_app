@@ -303,6 +303,26 @@
   .btn-edit { background:#facc15; color:#111827; }
   .btn-delete { background:#ef4444; color:#f9fafb; }
 
+  #advanced-tools-toggle {
+    margin-top: 12px;
+    background: #92400e;
+    color: white;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  #advanced-tools-panel {
+    display: none;
+    background: #fef3e0;
+    padding: 12px;
+    border-radius: 12px;
+    margin-top: 8px;
+    color: #111827;
+  }
+
   @media (max-width: 640px) {
     #vanlife-app {
       padding: 12px;
@@ -375,13 +395,12 @@
         <label for="search-pins"><b>Search spots:</b></label>
         <input id="search-pins" placeholder="Search by name, type, notes, suburb…" style="width:100%;padding:4px 6px;border-radius:6px;border:1px solid #d1d5db;background:#fff7ed;font-size:0.8rem;" />
       </div>
-      <div>
-        <button id="export-pins" class="control-button" style="padding:4px 8px;font-size:0.75rem;"><span>⬇️</span> Export</button>
-      </div>
-      <div>
-        <label for="import-file" style="font-size:0.75rem;font-weight:600;">Import</label>
-        <input type="file" id="import-file" accept="application/json" style="font-size:0.75rem;" />
-      </div>
+    </div>
+
+    <!-- Advanced Tools Toggle -->
+    <div id="advanced-tools-toggle">Advanced Tools ▼</div>
+    <div id="advanced-tools-panel">
+      <button id="export-pins" class="control-button" style="width:100%;background:#b45309;">⬇️ Export My Spots</button>
     </div>
 
     <div id="wifi-form-wrapper">
@@ -415,7 +434,7 @@
 
         <label for="spot-address">Location (enter address or place name + suburb)</label>
         <div class="autocomplete-box">
-          <input id="spot-address" placeholder="e.g. 123 Marine Parade Coolangatta, or 'free Wi‑Fi cafe Coolangatta'" required />
+          <input id="spot-address" placeholder="e.g. 123 Marine Parade Coolangatta" required />
           <div id="address-autocomplete" class="autocomplete-list" style="display:none;"></div>
         </div>
         <button type="button" id="use-map-address" style="margin-bottom:8px;background:#92400e;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:0.8rem;cursor:pointer;">
@@ -453,6 +472,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+
   let map, markersLayer, userMarker;
   let mapLocked = true;
   let userLatLng = null;
@@ -478,7 +498,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const emoji = {
     "Free Camping": '⛺',
     Library: '📚',
-    "McDonald\'s": '🍔',
+    "McDonald's": '🍔',
     Cafe: '☕',
     Toilet: '🚻',
     Park: '🌳',
@@ -717,7 +737,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (initial) {
           map.setView(userLatLng, 13);
         }
-        // Try to guess suburb once from user location
         userSuburbGuess = await reverseGeocode(userLatLng[0], userLatLng[1]) || '';
       },
       err => {
@@ -909,7 +928,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
 
-    // If no obvious suburb words and we have a guessed suburb, append it
     const lowerAddr = addrText.toLowerCase();
     const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
     const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
@@ -938,6 +956,7 @@ document.addEventListener('DOMContentLoaded', function() {
       lng,
       suburb
     };
+
     pins.push(pin);
     savePins();
     renderPinsOnMap();
@@ -948,156 +967,93 @@ document.addEventListener('DOMContentLoaded', function() {
     showToast('Spot added!');
   }
 
-  document.getElementById('wifi-form').addEventListener('submit', async e => {
+  document.getElementById('wifi-form').addEventListener('submit', function(e) {
     e.preventDefault();
-    await addPinFromForm();
-    e.target.reset();
-    map.invalidateSize();
+    addPinFromForm();
   });
 
-  function setupLocalAutocomplete(inputEl, listEl, sourceArray) {
-    inputEl.addEventListener('input', () => {
-      const val = inputEl.value.toLowerCase();
-      if (!val) {
+  /* -----------------------------
+     STICKY AUTOCOMPLETE LOGIC
+     ----------------------------- */
+
+  function showAutocomplete(listEl, items) {
+    if (!items.length) {
+      listEl.style.display = 'none';
+      return;
+    }
+    listEl.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'autocomplete-item';
+      div.textContent = item;
+      div.addEventListener('mousedown', () => {
+        if (listEl === nameAC) nameInput.value = item;
+        if (listEl === addressAC) addressInput.value = item;
         listEl.style.display = 'none';
-        listEl.innerHTML = '';
-        return;
-      }
-      const matches = sourceArray.filter(item => item.toLowerCase().includes(val)).slice(0, 8);
-      if (!matches.length) {
-        listEl.style.display = 'none';
-        listEl.innerHTML = '';
-        return;
-      }
-      listEl.innerHTML = '';
-      matches.forEach(m => {
-        const div = document.createElement('div');
-        div.className = 'autocomplete-item';
-        div.textContent = m;
-        div.onclick = () => {
-          inputEl.value = m;
-          listEl.style.display = 'none';
-          listEl.innerHTML = '';
-        };
-        listEl.appendChild(div);
       });
-      listEl.style.display = 'block';
+      listEl.appendChild(div);
     });
-
-    document.addEventListener('click', (e) => {
-      if (!listEl.contains(e.target) && e.target !== inputEl) {
-        listEl.style.display = 'none';
-      }
-    });
+    listEl.style.display = 'block';
   }
 
-  async function setupRemoteAutocomplete(inputEl, listEl) {
-    let lastQuery = '';
-    let lastTimeout = null;
-
+  function stickyAutocomplete(inputEl, listEl, sourceList) {
     inputEl.addEventListener('input', () => {
-      const val = inputEl.value.trim();
+      const val = inputEl.value.trim().toLowerCase();
       if (!val) {
         listEl.style.display = 'none';
-        listEl.innerHTML = '';
         return;
       }
-      if (lastTimeout) clearTimeout(lastTimeout);
-      lastTimeout = setTimeout(async () => {
-        if (val === lastQuery) return;
-        lastQuery = val;
-        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=au&q=' + encodeURIComponent(val);
-        try {
-          const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-          const data = await res.json();
-          if (!Array.isArray(data) || !data.length) {
-            listEl.style.display = 'none';
-            listEl.innerHTML = '';
-            return;
-          }
-          listEl.innerHTML = '';
-          data.forEach(item => {
-            const div = document.createElement('div');
-            div.className = 'autocomplete-item';
-            div.textContent = item.display_name;
-            div.onclick = () => {
-              inputEl.value = item.display_name;
-              listEl.style.display = 'none';
-              listEl.innerHTML = '';
-            };
-            listEl.appendChild(div);
-          });
-          listEl.style.display = 'block';
-        } catch(e) {
-          listEl.style.display = 'none';
-          listEl.innerHTML = '';
-        }
-      }, 300);
+      const matches = sourceList.filter(x => x.toLowerCase().includes(val));
+      showAutocomplete(listEl, matches);
     });
 
-    document.addEventListener('click', (e) => {
-      if (!listEl.contains(e.target) && e.target !== inputEl) {
+    inputEl.addEventListener('blur', () => {
+      setTimeout(() => {
         listEl.style.display = 'none';
-      }
+      }, 150);
     });
   }
 
-  setupLocalAutocomplete(nameInput, nameAC, commonNames);
-  setupLocalAutocomplete(addressInput, addressAC, commonAddresses);
-  setupRemoteAutocomplete(addressInput, addressAC);
-
-  filterType.addEventListener('change', () => {
-    renderPinsOnMap();
-    renderPinList();
-  });
-  filterFreeWifi.addEventListener('change', () => {
-    renderPinsOnMap();
-    renderPinList();
-  });
-  searchPinsInput.addEventListener('input', () => {
-    renderPinsOnMap();
-    renderPinList();
-  });
+  stickyAutocomplete(nameInput, nameAC, commonNames);
+  stickyAutocomplete(addressInput, addressAC, commonAddresses);
+  /* -----------------------------
+     EXPORT FUNCTION (Advanced Tools)
+     ----------------------------- */
 
   document.getElementById('export-pins').addEventListener('click', () => {
     if (!pins.length) {
-      showToast('No spots to export.');
+      showToast('No spots to export yet.');
       return;
     }
-    const blob = new Blob([JSON.stringify(pins, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(pins, null, 2));
     const a = document.createElement('a');
-    a.href = url;
-    a.download = 'vanlife_spots.json';
+    a.setAttribute("href", dataStr);
+    a.setAttribute("download", "my-vanlife-spots.json");
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Exported spots.');
+    a.remove();
+    showToast('Your spots have been exported.');
   });
 
-  document.getElementById('import-file').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const imported = JSON.parse(ev.target.result);
-        if (!Array.isArray(imported)) throw new Error('Invalid format');
-        pins = imported;
-        savePins();
-        renderPinsOnMap();
-        renderPinList();
-        showToast('Imported spots.');
-      } catch(err) {
-        alert('Invalid file format.');
-      }
-    };
-    reader.readAsText(file);
+  /* -----------------------------
+     ADVANCED TOOLS TOGGLE
+     ----------------------------- */
+
+  const advToggle = document.getElementById('advanced-tools-toggle');
+  const advPanel = document.getElementById('advanced-tools-panel');
+
+  advToggle.addEventListener('click', () => {
+    if (advPanel.style.display === 'block') {
+      advPanel.style.display = 'none';
+      advToggle.textContent = 'Advanced Tools ▼';
+    } else {
+      advPanel.style.display = 'block';
+      advToggle.textContent = 'Advanced Tools ▲';
+    }
   });
 
-  window.addEventListener('resize', () => map.invalidateSize());
-});
+}); // END DOMContentLoaded
 </script>
+
 </body>
 </html>
