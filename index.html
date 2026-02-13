@@ -564,10 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // INITIALIZE MAP
+  // Removed renderer: L.canvas() to avoid compatibility issues on some devices
   map = L.map('vanlife-map', {
     zoomControl: true,
-    zoomAnimation: false,
-    renderer: L.canvas()
+    zoomAnimation: false
   }).setView([-25.2744, 133.7751], 4);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -602,6 +603,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const raw = localStorage.getItem('vanlife_pins');
       if (!raw) return;
       pins = JSON.parse(raw) || [];
+      // Safety check: ensure pins is actually an array
+      if (!Array.isArray(pins)) pins = [];
     } catch(e) {
       pins = [];
     }
@@ -612,6 +615,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function matchesFilters(pin) {
+    if (!pin) return false; // Safety check
     if (filterType.value && pin.type !== filterType.value) return false;
     if (filterFreeWifi.checked && pin.wifi !== 'Yes') return false;
 
@@ -634,11 +638,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     pins.forEach(pin => {
+      // Safety checks for invalid data which could crash the map
+      if (!pin) return;
+      if (typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return;
+
       if (!matchesFilters(pin)) return;
+      
       const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type, pin.wifi) });
       
       // Use rawAddress for directions. This ensures navigation works based on user input.
-      const addressParam = encodeURIComponent(pin.rawAddress);
+      const addressParam = encodeURIComponent(pin.rawAddress || pin.name || '');
       const mapsUrl = isIOS 
         ? `http://maps.apple.com/?daddr=${addressParam}&dirflg=d` 
         : `https://www.google.com/maps/dir/?api=1&destination=${addressParam}`;
@@ -670,6 +679,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     pinList.innerHTML = '';
     visiblePins.forEach(pin => {
+      // Safety check
+      if (!pin) return;
+
       const div = document.createElement('div');
       div.className = 'pin-item';
       const span = document.createElement('span');
@@ -699,8 +711,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const idx = pins.findIndex(p => p.id === id);
     if (idx === -1) return;
     const pin = pins[idx];
-    document.getElementById('spot-name').value = pin.name;
-    document.getElementById('spot-type').value = pin.type;
+    document.getElementById('spot-name').value = pin.name || '';
+    document.getElementById('spot-type').value = pin.type || '';
     document.getElementById('spot-wifi').value = pin.wifi === 'Yes' ? 'Yes – Free Wi‑Fi' : 'No Free Wi‑Fi';
     document.getElementById('spot-address').value = pin.rawAddress || '';
     document.getElementById('spot-notes').value = pin.notes || '';
@@ -797,6 +809,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const maxKm = 10;
     const nearPins = pins.filter(p => {
+      // Check for valid lat/lng before calculation
+      if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
       const d = distanceKm(userLatLng[0], userLatLng[1], p.lat, p.lng);
       return d <= maxKm && matchesFilters(p);
     });
@@ -1071,4 +1085,3 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </body>
 </html>
-
