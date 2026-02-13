@@ -441,6 +441,10 @@
           📇 Use map centre address
         </button>
 
+        <!-- NEW COORDINATES FIELD -->
+        <label for="spot-coords">GPS Coordinates (optional)</label>
+        <input id="spot-coords" placeholder="e.g. -28.28757, 151.95112" />
+
         <label for="spot-notes">Notes or tips (optional)</label>
         <textarea id="spot-notes" rows="2" placeholder="Add tips like Wi‑Fi strength, parking, shade, safety, noise level, power points, toilets, or vanlife‑friendly features."></textarea>
 
@@ -564,11 +568,10 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // INITIALIZE MAP
-  // Removed renderer: L.canvas() to avoid compatibility issues on some devices
   map = L.map('vanlife-map', {
     zoomControl: true,
-    zoomAnimation: false
+    zoomAnimation: false,
+    renderer: L.canvas()
   }).setView([-25.2744, 133.7751], 4);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -603,8 +606,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const raw = localStorage.getItem('vanlife_pins');
       if (!raw) return;
       pins = JSON.parse(raw) || [];
-      // Safety check: ensure pins is actually an array
-      if (!Array.isArray(pins)) pins = [];
     } catch(e) {
       pins = [];
     }
@@ -615,7 +616,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function matchesFilters(pin) {
-    if (!pin) return false; // Safety check
     if (filterType.value && pin.type !== filterType.value) return false;
     if (filterFreeWifi.checked && pin.wifi !== 'Yes') return false;
 
@@ -638,16 +638,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     pins.forEach(pin => {
-      // Safety checks for invalid data which could crash the map
-      if (!pin) return;
-      if (typeof pin.lat !== 'number' || typeof pin.lng !== 'number') return;
-
       if (!matchesFilters(pin)) return;
-      
       const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type, pin.wifi) });
       
       // Use rawAddress for directions. This ensures navigation works based on user input.
-      const addressParam = encodeURIComponent(pin.rawAddress || pin.name || '');
+      const addressParam = encodeURIComponent(pin.rawAddress);
       const mapsUrl = isIOS 
         ? `http://maps.apple.com/?daddr=${addressParam}&dirflg=d` 
         : `https://www.google.com/maps/dir/?api=1&destination=${addressParam}`;
@@ -679,9 +674,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     pinList.innerHTML = '';
     visiblePins.forEach(pin => {
-      // Safety check
-      if (!pin) return;
-
       const div = document.createElement('div');
       div.className = 'pin-item';
       const span = document.createElement('span');
@@ -711,8 +703,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const idx = pins.findIndex(p => p.id === id);
     if (idx === -1) return;
     const pin = pins[idx];
-    document.getElementById('spot-name').value = pin.name || '';
-    document.getElementById('spot-type').value = pin.type || '';
+    document.getElementById('spot-name').value = pin.name;
+    document.getElementById('spot-type').value = pin.type;
     document.getElementById('spot-wifi').value = pin.wifi === 'Yes' ? 'Yes – Free Wi‑Fi' : 'No Free Wi‑Fi';
     document.getElementById('spot-address').value = pin.rawAddress || '';
     document.getElementById('spot-notes').value = pin.notes || '';
@@ -809,8 +801,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const maxKm = 10;
     const nearPins = pins.filter(p => {
-      // Check for valid lat/lng before calculation
-      if (typeof p.lat !== 'number' || typeof p.lng !== 'number') return false;
       const d = distanceKm(userLatLng[0], userLatLng[1], p.lat, p.lng);
       return d <= maxKm && matchesFilters(p);
     });
@@ -942,6 +932,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Capture the raw address exactly as typed
     const rawAddress = document.getElementById('spot-address').value.trim();
     const notes = document.getElementById('spot-notes').value.trim();
+    const coordsVal = document.getElementById('spot-coords').value.trim();
 
     if (!type || !wifiVal || !rawAddress) {
       showToast('Please fill in all required fields.');
@@ -950,25 +941,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     wifiVal = wifiVal.startsWith('Yes') ? 'Yes' : 'No';
 
-    // Create a separate variable for searching coordinates so we don't modify rawAddress
-    let searchAddress = rawAddress;
-    const lowerAddr = searchAddress.toLowerCase();
-    const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
-    const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
-    
-    // Append user suburb context only for the search query to help finding lat/lng
-    if (!hasSuburb && userSuburbGuess) {
-      searchAddress = searchAddress + ' ' + userSuburbGuess;
-    }
+    let lat, lng;
 
-    setStatus('Finding that place…');
-    const geo = await smartGeocode(name + ' ' + searchAddress);
-    if (!geo) {
-      setStatus('');
-      alert("Couldn't find that place. Try including a suburb or use the 'Use map centre address' button.");
-      return;
+    if (coordsVal) {
+      const parts = coordsVal.split(',');
+      if (parts.length === 2) {
+        lat = parseFloat(parts[0].trim());
+        lng = parseFloat(parts[1].trim());
+      }
+      if (typeof lat !== 'number' || isNaN(lat) || typeof lng !== 'number' || isNaN(lng)) {
+        showToast('Invalid GPS coordinates format');
+        return;
+      }
+    } else {
+      // Create a separate variable for searching coordinates so we don't modify rawAddress
+      let searchAddress = rawAddress;
+      const lowerAddr = searchAddress.toLowerCase();
+      const suburbKeywords = ['coolangatta','ballina','coffs','byron','gold coast','brisbane','sydney','melbourne','nsw','qld','vic','sa','wa','tas'];
+      const hasSuburb = suburbKeywords.some(k => lowerAddr.includes(k));
+      
+      // Append user suburb context only for the search query to help finding lat/lng
+      if (!hasSuburb && userSuburbGuess) {
+        searchAddress = searchAddress + ' ' + userSuburbGuess;
+      }
+
+      setStatus('Finding that place…');
+      const geo = await smartGeocode(name + ' ' + searchAddress);
+      if (!geo) {
+        setStatus('');
+        alert("Couldn't find that place. Try including a suburb or use the 'Use map centre address' button.");
+        return;
+      }
+      lat = geo[0];
+      lng = geo[1];
     }
-    const [lat, lng, displayName] = geo;
     
     // Optional: get suburb just for the pin info, but don't overwrite rawAddress
     const suburb = await reverseGeocode(lat, lng);
@@ -1074,7 +1080,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (advPanel.style.display === 'block') {
       advPanel.style.display = 'none';
       advToggle.textContent = 'Advanced Tools ▼';
-    } else {
+    }
+    else {
       advPanel.style.display = 'block';
       advToggle.textContent = 'Advanced Tools ▲';
     }
