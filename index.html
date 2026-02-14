@@ -100,6 +100,11 @@
     justify-content: center;
     gap: 4px;
   }
+  
+  /* Specific style for AI button */
+  #ask-ai-btn {
+    background: #0f766e; /* Teal color to distinguish */
+  }
 
   .control-button span {
     font-size: 1.1rem;
@@ -285,10 +290,18 @@
     background: rgba(15,23,42,0.35);
     margin-bottom: 4px;
   }
-
-  .pin-item span {
+  
+  .pin-info {
     flex: 1;
     margin-right: 6px;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .pin-date {
+    font-size: 0.65rem;
+    color: #d1d5db;
+    margin-top: 2px;
   }
 
   .pin-actions button {
@@ -321,6 +334,12 @@
     border-radius: 12px;
     margin-top: 8px;
     color: #111827;
+  }
+  
+  .bulk-import-section {
+    margin-top: 12px;
+    border-top: 1px solid #d1d5db;
+    padding-top: 12px;
   }
 
   @media (max-width: 640px) {
@@ -370,6 +389,7 @@
       <button id="show-my-pins" class="control-button"><span>⭐</span> My Saved Spots</button>
       <button id="show-near-me" class="control-button"><span>📡</span> Spots Near Me</button>
       <button id="add-here" class="control-button"><span>➕</span> Add Spot Here</button>
+      <button id="ask-ai-btn" class="control-button"><span>🤖</span> Ask AI</button>
     </div>
 
     <div id="filters-row">
@@ -401,6 +421,19 @@
     <div id="advanced-tools-toggle">Advanced Tools ▼</div>
     <div id="advanced-tools-panel">
       <button id="export-pins" class="control-button" style="width:100%;background:#b45309;">⬇️ Export My Spots</button>
+      
+      <div class="bulk-import-section">
+        <label style="font-weight:bold;display:block;margin-bottom:6px;">Bulk Import (Pipe Separated)</label>
+        <div style="font-size:0.75rem;margin-bottom:6px;color:#555;">
+            Paste text using the format:<br>
+            Name|Type|Wifi(Yes/No)|Lat|Long|Suburb|Notes
+        </div>
+        <textarea id="bulk-import-text" rows="4" placeholder="Example:
+Free Camp 1|Free Camping|Yes|-16.9203|145.7710|Cairns|Great view
+Library Ballina|Library|Yes|-28.868|153.561|Ballina|Good wifi"></textarea>
+        <button id="btn-bulk-import" class="control-button" style="width:100%;background:#0f766e;margin-top:6px;">📥 Import Pins</button>
+        <button id="btn-clear-all" class="control-button" style="width:100%;background:#ef4444;margin-top:6px;font-size:0.8rem;">⚠️ Clear ALL Pins</button>
+      </div>
     </div>
 
     <div id="wifi-form-wrapper">
@@ -633,19 +666,27 @@ document.addEventListener('DOMContentLoaded', function() {
     return haystack.includes(q);
   }
 
+  // --- LAZY LOADING & RENDERING ---
   function renderPinsOnMap() {
     markersLayer.clearLayers();
+    const bounds = map.getBounds();
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     pins.forEach(pin => {
+      // 1. Check Filters
       if (!matchesFilters(pin)) return;
+      // 2. Check Map Bounds (Lazy Load)
+      const latLng = L.latLng(pin.lat, pin.lng);
+      if (!bounds.contains(latLng)) return;
+
       const marker = L.marker([pin.lat, pin.lng], { icon: createIcon(pin.type, pin.wifi) });
       
-      // Use rawAddress for directions. This ensures navigation works based on user input.
       const addressParam = encodeURIComponent(pin.rawAddress);
       const mapsUrl = isIOS 
         ? `http://maps.apple.com/?daddr=${addressParam}&dirflg=d` 
         : `https://www.google.com/maps/dir/?api=1&destination=${addressParam}`;
+
+      const dateStr = pin.addedAt ? new Date(pin.addedAt).toLocaleDateString() : '';
 
       const popup = `
         <div style="min-width:200px;">
@@ -653,7 +694,9 @@ document.addEventListener('DOMContentLoaded', function() {
           <b>${pin.type}</b><br>
           Free Wi‑Fi: <span style="color:${pin.wifi === 'Yes' ? 'green' : 'red'}">${pin.wifi === 'Yes' ? 'Yes' : 'No'}</span><br>
           ${pin.suburb ? `<span>${pin.suburb}</span><br>` : ''}
-          ${pin.notes ? `<i>${pin.notes}</i><br>` : ''}<br>
+          ${pin.notes ? `<i>${pin.notes}</i><br>` : ''}
+          ${dateStr ? `<span style="font-size:0.7rem;color:#6b7280;">Added: ${dateStr}</span><br>` : ''}
+          <br>
           <a href="${mapsUrl}"
              target="_blank"
              style="color:#b45309;font-weight:bold;">
@@ -665,19 +708,50 @@ document.addEventListener('DOMContentLoaded', function() {
       marker.addTo(markersLayer);
     });
   }
+  
+  // Re-render map pins when user moves/zooms
+  map.on('moveend', renderPinsOnMap);
 
   function renderPinList() {
-    const visiblePins = pins.filter(matchesFilters);
+    // Show ALL matches for search, but limit rendering count for DOM performance
+    let visiblePins = pins.filter(matchesFilters);
+    
+    // Sort by addedAt descending (newest first)
+    visiblePins.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+
     if (!visiblePins.length) {
       pinList.innerHTML = '<div style="color:#e5e7eb;font-size:0.8rem;">No spots match your filters yet.</div>';
       return;
     }
+    
     pinList.innerHTML = '';
-    visiblePins.forEach(pin => {
+    
+    // Performance: Only render top 50 matches in the list
+    const limit = 50; 
+    visiblePins.slice(0, limit).forEach(pin => {
       const div = document.createElement('div');
       div.className = 'pin-item';
-      const span = document.createElement('span');
-      span.textContent = `${emoji[pin.type] || '📍'} ${pin.name || 'Unnamed'} (${pin.type})${pin.suburb ? ' – ' + pin.suburb : ''}`;
+      
+      const info = document.createElement('div');
+      info.className = 'pin-info';
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.innerHTML = `<b>${emoji[pin.type] || '📍'} ${pin.name || 'Unnamed'}</b> (${pin.type})`;
+      
+      const subSpan = document.createElement('span');
+      subSpan.style.fontSize = '0.75rem';
+      subSpan.textContent = pin.suburb ? pin.suburb : pin.rawAddress;
+      
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'pin-date';
+      if (pin.addedAt) {
+        dateSpan.textContent = 'Added: ' + new Date(pin.addedAt).toLocaleDateString();
+      }
+
+      info.appendChild(nameSpan);
+      info.appendChild(subSpan);
+      if(pin.addedAt) info.appendChild(dateSpan);
+
       const actions = document.createElement('div');
       actions.className = 'pin-actions';
 
@@ -693,10 +767,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
       actions.appendChild(btnEdit);
       actions.appendChild(btnDelete);
-      div.appendChild(span);
+      div.appendChild(info);
       div.appendChild(actions);
       pinList.appendChild(div);
     });
+    
+    if (visiblePins.length > limit) {
+      const moreDiv = document.createElement('div');
+      moreDiv.style.textAlign='center';
+      moreDiv.style.fontSize='0.75rem';
+      moreDiv.style.padding='4px';
+      moreDiv.style.color='#9ca3af';
+      moreDiv.textContent = `...and ${visiblePins.length - limit} more matches (zoom in or search)`;
+      pinList.appendChild(moreDiv);
+    }
   }
 
   function editPin(id) {
@@ -723,6 +807,11 @@ document.addEventListener('DOMContentLoaded', function() {
     renderPinList();
     showToast('Spot deleted');
   }
+  
+  // Listeners for filters to trigger updates
+  filterType.addEventListener('change', () => { renderPinsOnMap(); renderPinList(); });
+  filterFreeWifi.addEventListener('change', () => { renderPinsOnMap(); renderPinList(); });
+  searchPinsInput.addEventListener('input', () => { renderPinsOnMap(); renderPinList(); });
 
   loadPins();
   renderPinsOnMap();
@@ -778,6 +867,15 @@ document.addEventListener('DOMContentLoaded', function() {
       if (userMarker) userMarker.openPopup();
     } else {
       getUserLocation(true);
+    }
+  });
+  
+  // --- AI BUTTON LOGIC ---
+  document.getElementById('ask-ai-btn').addEventListener('click', () => {
+    const q = prompt("What are you looking for?", "Free camping near Cairns");
+    if (q) {
+        const url = `https://chatgpt.com/?q=${encodeURIComponent(q + ' list lat long addresses for vanlife')}`;
+        window.open(url, '_blank');
     }
   });
 
@@ -988,7 +1086,8 @@ document.addEventListener('DOMContentLoaded', function() {
       notes,
       lat,
       lng,
-      suburb
+      suburb,
+      addedAt: Date.now() // Timestamp
     };
 
     pins.push(pin);
@@ -1050,6 +1149,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
   stickyAutocomplete(nameInput, nameAC, commonNames);
   stickyAutocomplete(addressInput, addressAC, commonAddresses);
+  
+  /* -----------------------------
+     BULK IMPORT LOGIC
+     ----------------------------- */
+  document.getElementById('btn-bulk-import').addEventListener('click', () => {
+    const raw = document.getElementById('bulk-import-text').value.trim();
+    if (!raw) {
+        showToast('Paste data first.');
+        return;
+    }
+    
+    const lines = raw.split('\n');
+    let importedCount = 0;
+    
+    lines.forEach(line => {
+        const parts = line.split('|');
+        // Format: Name|Type|Wifi|Lat|Long|Suburb|Notes
+        if (parts.length >= 5) {
+            const lat = parseFloat(parts[3]);
+            const lng = parseFloat(parts[4]);
+            
+            if (!isNaN(lat) && !isNaN(lng)) {
+                pins.push({
+                    id: Date.now() + Math.random(), // Unique ID
+                    name: parts[0].trim(),
+                    type: parts[1].trim(),
+                    wifi: parts[2].trim(),
+                    lat: lat,
+                    lng: lng,
+                    rawAddress: parts[5] ? parts[5].trim() : (lat + ',' + lng),
+                    suburb: parts[5] ? parts[5].trim() : '',
+                    notes: parts[6] ? parts[6].trim() : '',
+                    addedAt: Date.now()
+                });
+                importedCount++;
+            }
+        }
+    });
+    
+    if (importedCount > 0) {
+        savePins();
+        renderPinsOnMap();
+        renderPinList();
+        document.getElementById('bulk-import-text').value = '';
+        showToast(`${importedCount} pins imported!`);
+    } else {
+        showToast('No valid format found. Use | separators.');
+    }
+  });
+  
+  document.getElementById('btn-clear-all').addEventListener('click', () => {
+    if(confirm('Are you SURE you want to delete ALL pins? This cannot be undone.')) {
+        pins = [];
+        savePins();
+        renderPinsOnMap();
+        renderPinList();
+        showToast('All pins deleted.');
+    }
+  });
+
   /* -----------------------------
      EXPORT FUNCTION (Advanced Tools)
      ----------------------------- */
