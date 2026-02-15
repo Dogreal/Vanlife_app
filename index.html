@@ -370,6 +370,7 @@
       <button id="show-my-pins" class="control-button"><span>⭐</span> My Saved Spots</button>
       <button id="show-near-me" class="control-button"><span>📡</span> Spots Near Me</button>
       <button id="add-here" class="control-button"><span>➕</span> Add Spot Here</button>
+      <button id="ask-ai" class="control-button"><span>🤖</span> Ask AI</button>
     </div>
 
     <div id="filters-row">
@@ -476,9 +477,6 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  
-  // NEW: User Role Setup (Change 'admin' to 'guest' to hide bulk tool)
-  const currentUser = { role: 'admin' };
 
   let map, markersLayer, userMarker;
   let mapLocked = true;
@@ -834,6 +832,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  document.getElementById('ask-ai').addEventListener('click', () => {
+    window.open('https://chatgpt.com/', '_blank');
+  });
+
   useMapAddressBtn.addEventListener('click', async () => {
     const centre = map.getCenter();
     setStatus('Getting address from map centre…');
@@ -922,56 +924,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   async function addPinFromForm() {
-    // NEW: Check for Bulk Admin Input First
-    const bulkInput = document.getElementById('bulk-coords');
-    if (bulkInput && bulkInput.value.trim() !== "") {
-        const rawText = bulkInput.value.trim();
-        const lines = rawText.split('\n');
-        let created = 0;
-        let skipped = 0;
-
-        lines.forEach((line, idx) => {
-            const parts = line.split(',');
-            if (parts.length < 2) {
-                skipped++;
-                return;
-            }
-            const lat = parseFloat(parts[0].trim());
-            const lng = parseFloat(parts[1].trim());
-            if (isNaN(lat) || isNaN(lng)) {
-                skipped++;
-                return;
-            }
-            
-            // Create pin directly skipping validation
-            pins.push({
-                id: Date.now() + idx, // unique ID hack
-                name: "Bulk Imported Pin",
-                type: "Other",
-                wifi: "No",
-                rawAddress: `${lat}, ${lng}`, // save raw coords as address for nav
-                notes: "Bulk imported via admin tool",
-                lat: lat,
-                lng: lng,
-                suburb: "",
-                source: "bulk-admin",
-                timestamp: Date.now()
-            });
-            created++;
-        });
-
-        if (created > 0) {
-            savePins();
-            renderPinsOnMap();
-            renderPinList();
-            bulkInput.value = "";
-            showToast(`${created} pins created, ${skipped} lines skipped.`);
-        } else {
-            showToast(`No valid coordinates found. ${skipped} lines skipped.`);
-        }
-        return; // Stop execution, skip normal validation
-    }
-
     const now = Date.now();
     if (now - lastSubmitTime < 1500) {
       showToast('Slow down a little—spot already added.');
@@ -1001,7 +953,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (parts.length === 2) {
         lat = parseFloat(parts[0].trim());
         lng = parseFloat(parts[1].trim());
-      } அர
+      }
       if (typeof lat !== 'number' || isNaN(lat) || typeof lng !== 'number' || isNaN(lng)) {
         showToast('Invalid GPS coordinates format');
         return;
@@ -1103,42 +1055,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   stickyAutocomplete(nameInput, nameAC, commonNames);
   stickyAutocomplete(addressInput, addressAC, commonAddresses);
-  
-  // NEW: Inject Bulk Admin Field if User is Admin
-  if (currentUser.role === 'admin') {
-    const form = document.getElementById('wifi-form');
-    const submitBtn = form.querySelector('button[type="submit"]');
-    
-    const wrapper = document.createElement('div');
-    wrapper.style.marginBottom = '10px';
-    wrapper.style.marginTop = '10px';
-    wrapper.style.borderTop = '2px dashed #b45309';
-    wrapper.style.paddingTop = '10px';
-    
-    const label = document.createElement('label');
-    label.innerText = 'Bulk Coordinates (Admin Only)';
-    label.setAttribute('for', 'bulk-coords');
-    label.style.color = '#b45309';
-    label.style.fontWeight = 'bold';
-    label.style.display = 'block';
-    
-    const txt = document.createElement('textarea');
-    txt.id = 'bulk-coords';
-    txt.rows = 3;
-    txt.placeholder = '-16.9202, 145.7761\n-16.9180, 145.7785';
-    txt.style.width = '100%';
-    txt.style.padding = '6px';
-    txt.style.borderRadius = '6px';
-    txt.style.border = '1px solid #d1d5db';
-    txt.style.background = '#fff7ed';
-    txt.style.fontSize = '0.9rem';
-    
-    wrapper.appendChild(label);
-    wrapper.appendChild(txt);
-    
-    form.insertBefore(wrapper, submitBtn);
-  }
-
   /* -----------------------------
      EXPORT FUNCTION (Advanced Tools)
      ----------------------------- */
