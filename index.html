@@ -370,7 +370,19 @@
       <button id="show-my-pins" class="control-button"><span>⭐</span> My Saved Spots</button>
       <button id="show-near-me" class="control-button"><span>📡</span> Spots Near Me</button>
       <button id="add-here" class="control-button"><span>➕</span> Add Spot Here</button>
-      <button id="ask-ai" class="control-button"><span>🤖</span> Ask AI </button>
+    </div>
+
+    <!-- Ask AI Section (Moved here, Green Color, Instructions Added) -->
+    <div style="margin-top:8px;">
+      <button id="ask-ai" class="control-button" style="width:100%; background-color:#16a34a;"><span>🤖</span> Ask AI </button>
+      
+      <div style="margin-top:8px; padding:10px; background:rgba(255,255,255,0.1); border-radius:8px;">
+        <p style="margin-bottom:6px; font-weight:600;">Use this Prompt to ask ChatGPT to find your locations:</p>
+        <div style="background:#fff7ed; color:#111827; padding:8px; border-radius:6px; font-size:0.85rem; user-select: text;">
+          Find free camps, rest areas, or parks where overnight stays are allowed. Return name, address, postcode, latitude/longitude, coordinate source, and nearby public WiFi options. Only use publicly available coordinates.
+        </div>
+        <p style="margin-top:6px; font-size:0.85rem;">Now fill in the fields and Add Spot.</p>
+      </div>
     </div>
 
     <div id="filters-row">
@@ -593,7 +605,8 @@ document.addEventListener('DOMContentLoaded', function() {
       map.boxZoom.disable();
       map.keyboard.disable();
       map.doubleClickZoom.disable();
-    } else {
+    }
+    else {
       map.dragging.enable();
       map.touchZoom.enable();
       map.scrollWheelZoom.enable();
@@ -828,7 +841,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (approx) {
       addressInput.value = approx;
       showToast('Approximate address from map centre added.');
-    } else {
+    }
+    else {
       addressInput.value = 'Current location';
       showToast('Form set to your current location – add name/type and save.');
     }
@@ -846,7 +860,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (approx) {
       addressInput.value = approx;
       showToast('Approximate address added from map centre.');
-    } else {
+    }
+    else {
       showToast('Could not get address from map centre.');
     }
   });
@@ -1098,13 +1113,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 </body>
-</html> 
-
-
-
-
-
-
-
-
-
+</html>
